@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Numerics;
 using Raylib_cs;
 
@@ -20,6 +21,9 @@ public static class Program
     public const int PicaretadasParaQuebrar = 3;
 
     public const int XpPorZumbi = 10;
+    const string MusicaDoMenu = "assets/audio/musicas/menu.wav";
+    const string MusicaDoDia = "assets/audio/musicas/musica_dia.mp3";
+    const string MusicaDaNoite = "assets/audio/musicas/musica_noite.mp3";
 
     public static bool ForjaAberta = false;
     public static bool InventarioAberto = false;
@@ -40,8 +44,23 @@ public static class Program
 
         ConfiguracoesJogo.Carrega();
         AudioManager.Inicia();
-        // Se quiser uma música de menu, chame aqui, por ex:
-        // AudioManager.TocaMusica("assets/audio/menu.ogg");
+        EventoTelefone.CarregaSprite();
+        AudioManager.CarregaSonsMenu();
+        EventoTelefone.CarregaAudio();
+        List<Sound> sonsSwooshEspada = CarregaEfeitos(
+            "assets/audio/espada/swoosh_1.wav",
+            "assets/audio/espada/swoosh_2.wav",
+            "assets/audio/espada/swoosh_3.mp3");
+        List<Sound> sonsAcertoEspada = CarregaEfeitos(
+            "assets/audio/espada/hit_1.wav",
+            "assets/audio/espada/hit_2.mp3",
+            "assets/audio/espada/hit_3.wav");
+        List<Sound> sonsPicareta = CarregaEfeitos(
+            "assets/audio/picareta/hit.wav");
+        int ultimaVariacaoSwoosh = -1;
+        int ultimaVariacaoAcerto = -1;
+        int ultimaVariacaoPicareta = -1;
+        AudioManager.TocaMusica(MusicaDoMenu);
 
         // ================= MENU INICIAL =================
         MenuUI.ReiniciaEstado();
@@ -64,9 +83,6 @@ public static class Program
             return;
         }
 
-        // Se quiser trocar pra música de gameplay ao começar a jogar:
-        // AudioManager.TocaMusica("assets/audio/gameplay.ogg");
-
         // ================= SETUP DO JOGO =================
         Jogador jogador = new Jogador();
         jogador.CarregaSprites();
@@ -75,6 +91,7 @@ public static class Program
         HUD.Carrega();
         CenaMundo.Carrega();
         Zumbi.CarregaSprites();
+        Jerisvaldo.CarregaSpriteMarcaX();
 
         Vector2 posInicial = new Vector2(
             CenaMundo.LarguraMapa / 2f - jogador.TamanhoVisual / 2f,
@@ -115,6 +132,8 @@ public static class Program
         Random rng = new Random();
         float tempoSpawn = 0f;
         float tempoSpawnZumbi = 0f;
+        float tempoCooldownPicareta = 0f;
+        bool zumbisInvocadosNesteCiclo = false;
 
         for (int i = 0; i < 10; i++)
             TentaSpawnarMinerio(minerios, rng, objetos);
@@ -132,11 +151,15 @@ public static class Program
             }
         }
 
+        AudioManager.TocaMusica(MusicaDoHorario());
+
         Camera2D camera = new Camera2D();
         camera.Offset = new Vector2(LarguraTela / 2f, AlturaTela / 2f);
         camera.Zoom = 0.75f;
         camera.Rotation = 0f;
         camera.Target = jogador.Centro();
+        EventoTelefone eventoTelefone = new EventoTelefone();
+        Jerisvaldo jerisvaldo = null;
 
         List<CoisaDesenhavel> coisas = new List<CoisaDesenhavel>();
 
@@ -144,14 +167,42 @@ public static class Program
         while (!Raylib.WindowShouldClose())
         {
             float delta = Raylib.GetFrameTime();
-            bool dormindo = OverlaySono.Dormindo;
-            bool menuAberto = ForjaAberta || InventarioAberto;
-            bool travado = dormindo || menuAberto || GameOverUI.Ativo;
-
+            tempoCooldownPicareta = Math.Max(0f, tempoCooldownPicareta - delta);
             InputState input = Input.Read();
             AudioManager.AtualizaMusica();
 
+            int diaAntesDeDormir = EstadoJogo.Dia;
+            bool eraDiaAntesDeDormir = EstadoJogo.EhDia;
             OverlaySono.Atualiza(delta);
+            if (eraDiaAntesDeDormir != EstadoJogo.EhDia)
+                AudioManager.TocaMusica(MusicaDoHorario());
+
+            if (diaAntesDeDormir < EventoTelefone.DiaDoEvento &&
+                EstadoJogo.Dia >= EventoTelefone.DiaDoEvento)
+            {
+                eventoTelefone.Inicia(camera.Target, camera.Zoom);
+            }
+
+            eventoTelefone.Atualiza(delta, input, jogador.Centro(), ref camera);
+            if (eventoTelefone.ConsomePedidoInicioBatalha())
+            {
+                CenaMundo.AmpliaIlha(1.25f);
+                objetos.Clear();
+                minerios.Clear();
+                drops.Clear();
+                zumbis.Clear();
+                tempoSpawn = 0f;
+                tempoSpawnZumbi = 0f;
+                navegacaoZumbi = new NavegacaoZumbi(
+                    objetos, Zumbi.TamanhoArte * Zumbi.Escala);
+                jerisvaldo = new Jerisvaldo(
+                    CenaMundo.CentroIlha + new Vector2(0f, -360f));
+            }
+
+            bool dormindo = OverlaySono.Dormindo;
+            bool menuAberto = ForjaAberta || InventarioAberto;
+            bool travado = dormindo || menuAberto || GameOverUI.Ativo ||
+                           eventoTelefone.BloqueiaJogador;
             LevelUpAviso.Atualiza(delta);
 
             if (GameOverUI.Ativo)
@@ -160,19 +211,41 @@ public static class Program
                     (Raylib.IsGamepadAvailable(0) &&
                      Raylib.IsGamepadButtonPressed(0, GamepadButton.RightFaceDown)))
                 {
+                    AudioManager.TocaCliqueMenu();
+                    CenaMundo.RestauraDimensoes();
                     EstadoJogo.Resetar();
                     jogador.Pos = posInicial;
                     jogador.VidaPontosReset();
+                    ForjaAberta = false;
+                    InventarioAberto = false;
+                    OverlaySono.Estado = EstadoSono.Acordado;
+                    OverlaySono.Tempo = 0f;
+                    LevelUpAviso.Tempo = 0f;
+
+                    objetos.Clear();
+                    objetos.Add(casa);
+                    objetos.Add(juju);
+                    objetos.Add(forja);
+                    navegacaoZumbi = new NavegacaoZumbi(
+                        objetos, Zumbi.TamanhoArte * Zumbi.Escala);
+
                     zumbis.Clear();
+                    zumbisInvocadosNesteCiclo = false;
                     drops.Clear();
                     minerios.Clear();
                     for (int i = 0; i < 10; i++)
                         TentaSpawnarMinerio(minerios, rng, objetos);
 
                     CicloDiaNoite.ForcaDia();
+                    eventoTelefone = new EventoTelefone();
+                    jerisvaldo = null;
+                    camera.Target = jogador.Centro();
+                    camera.Zoom = 0.75f;
+                    AudioManager.TocaMusica(MusicaDoDia);
                     GameOverUI.Ativo = false;
                     tempoSpawnZumbi = 0f;
                     tempoSpawn = 0f;
+                    tempoCooldownPicareta = 0f;
                 }
             }
 
@@ -203,7 +276,7 @@ public static class Program
             bool pertoDaCasa  = Vector2.Distance(centroKile, casa.Centro())  < DistanciaInteracao;
             bool pertoDaForja = Vector2.Distance(centroKile, forja.Centro()) < DistanciaInteracao;
 
-            if (!travado && input.InteractPressed)
+            if (!travado && !eventoTelefone.Ativo && input.InteractPressed)
             {
                 if (pertoDaForja)
                 {
@@ -218,7 +291,8 @@ public static class Program
                 }
             }
 
-            if (input.InventoryPressed && !dormindo && !ForjaAberta && !GameOverUI.Ativo)
+            if (input.InventoryPressed && !dormindo && !ForjaAberta &&
+                !GameOverUI.Ativo && !eventoTelefone.BloqueiaJogador)
             {
                 if (InventarioAberto) InventarioAberto = false;
                 else
@@ -245,13 +319,16 @@ public static class Program
             }
 
             if (!travado && !jogador.Batendo
-                && (input.MouseClickPressed || input.AttackPressed))
+                && (input.MouseClickPressed || input.AttackPressed)
+                && (EstadoJogo.ItemAtual != ItemEquipado.Picareta || tempoCooldownPicareta <= 0f))
             {
                 if (EstadoJogo.ItemAtual == ItemEquipado.Picareta)
                 {
                     Minerio alvo = MinerioMaisProximo(minerios, centroKile, DistanciaMinerar);
                     if (alvo != null)
                     {
+                        TocaVariacao(sonsPicareta, ref ultimaVariacaoPicareta);
+                        tempoCooldownPicareta = 0.6f;
                         alvo.PicaretadasRestantes--;
                         alvo.TempoTremor = 0.15f;
                         alvo.IniciaAnimacao();
@@ -276,24 +353,42 @@ public static class Program
                 else
                 {
                     jogador.IniciaBatida();
-                    Zumbi alvo = ZumbiMaisProximo(zumbis, centroKile, DistanciaAtaque);
-                    if (alvo != null)
-                    {
-                        int indiceEspada = EstadoJogo.EspadaEquipada;
-                        int dano = indiceEspada >= 0
-                                   && indiceEspada < EstadoJogo.Espadas.Count
-                                   && indiceEspada < EstadoJogo.EspadasCompradas.Length
-                                   && EstadoJogo.EspadasCompradas[indiceEspada]
-                            ? EstadoJogo.Espadas[indiceEspada].Dano
-                            : 1;
-                        bool morreu = alvo.TomaDano(dano);
+                    TocaVariacao(sonsSwooshEspada, ref ultimaVariacaoSwoosh);
+                    int indiceEspada = EstadoJogo.EspadaEquipada;
+                    int dano = indiceEspada >= 0
+                               && indiceEspada < EstadoJogo.Espadas.Count
+                               && indiceEspada < EstadoJogo.EspadasCompradas.Length
+                               && EstadoJogo.EspadasCompradas[indiceEspada]
+                        ? EstadoJogo.Espadas[indiceEspada].Dano
+                        : 1;
 
-                        if (morreu)
+                    bool bossNoAlcance = eventoTelefone.BatalhaAtiva &&
+                        jerisvaldo != null && jerisvaldo.EstaVivo &&
+                        jerisvaldo.EstaNoAlcance(centroKile, DistanciaAtaque);
+
+                    if (bossNoAlcance && jerisvaldo!.EstaVulneravel)
+                    {
+                        if (jerisvaldo.TomaDano(dano))
                         {
-                            EstadoJogo.GanhaXp(XpPorZumbi);
-                            Efeitos.Shake(8f, 0.4f);
+                            TocaVariacao(sonsAcertoEspada, ref ultimaVariacaoAcerto);
+                            Efeitos.Shake(6f, 0.18f);
                         }
-                        else Efeitos.Shake(4f, 0.2f);
+                    }
+                    else
+                    {
+                        Zumbi alvoZumbi = ZumbiMaisProximo(zumbis, centroKile, DistanciaAtaque);
+                        if (alvoZumbi != null)
+                        {
+                            TocaVariacao(sonsAcertoEspada, ref ultimaVariacaoAcerto);
+                            bool morreu = alvoZumbi.TomaDano(dano);
+
+                            if (morreu)
+                            {
+                                EstadoJogo.GanhaXp(XpPorZumbi);
+                                Efeitos.Shake(8f, 0.4f);
+                            }
+                            else Efeitos.Shake(4f, 0.2f);
+                        }
                     }
                 }
             }
@@ -314,7 +409,10 @@ public static class Program
             }
 
             bool eraDia = EstadoJogo.EhDia;
-            CicloDiaNoite.Atualiza(delta);
+            if (!eventoTelefone.BatalhaAtiva)
+                CicloDiaNoite.Atualiza(delta);
+            if (eraDia != EstadoJogo.EhDia)
+                AudioManager.TocaMusica(MusicaDoHorario());
 
             if (!eraDia && EstadoJogo.EhDia)
             {
@@ -325,7 +423,7 @@ public static class Program
                     SaveSystem.Salva(MenuUI.SlotAtual, jogador);
             }
 
-            if (!EstadoJogo.EhDia)
+            if (!EstadoJogo.EhDia && !eventoTelefone.ArenaAtiva)
             {
                 tempoSpawnZumbi += delta;
                 float intervalo = 3f - EstadoJogo.NoitesSobrevividas * 0.3f;
@@ -358,7 +456,8 @@ public static class Program
             for (int i = zumbis.Count - 1; i >= 0; i--)
             {
                 var z = zumbis[i];
-                z.Atualiza(delta, jogador.Centro(), velZumbiBase, navegacaoZumbi, EstadoJogo.EhDia);
+                bool queimarAoAmanhecer = EstadoJogo.EhDia && !eventoTelefone.ArenaAtiva;
+                z.Atualiza(delta, jogador.Centro(), velZumbiBase, navegacaoZumbi, queimarAoAmanhecer);
 
                 if (z.EstaMorto())
                 {
@@ -372,13 +471,55 @@ public static class Program
                     jogador.TomaDano(z.Centro(), z.DanoContato);
             }
 
+            if (jerisvaldo != null && eventoTelefone.ArenaAtiva)
+            {
+                Rectangle limitesIlha = new Rectangle(
+                    CenaMundo.PosIlha.X,
+                    CenaMundo.PosIlha.Y,
+                    CenaMundo.GramaLargura,
+                    CenaMundo.GramaAltura
+                );
+                float shakeAntes = jerisvaldo.IntensidadeShake;
+                jerisvaldo.Atualiza(delta, jogador.Centro(), limitesIlha);
+
+                if (jerisvaldo.IntensidadeShake > shakeAntes)
+                    Efeitos.Shake(jerisvaldo.IntensidadeShake, 0.45f);
+
+                if (jerisvaldo.ConsomeDanoImpacto() &&
+                    Vector2.Distance(jogador.Centro(), jerisvaldo.PosicaoImpacto) <= jerisvaldo.RaioDanoArea)
+                {
+                    jogador.TomaDano(jerisvaldo.PosicaoImpacto, jerisvaldo.DanoImpacto);
+                }
+
+                if (jerisvaldo.DeveSpawnarZumbis && !zumbisInvocadosNesteCiclo)
+                {
+                    foreach (Vector2 centroInvocacao in jerisvaldo.PosicoesZumbis)
+                    {
+                        Zumbi invocado = new Zumbi
+                        {
+                            Pos = centroInvocacao - new Vector2(Zumbi.TamanhoArte * Zumbi.Escala / 2f),
+                            Vida = Math.Max(2, EstadoJogo.NoitesSobrevividas + 2),
+                            DanoContato = 1
+                        };
+                        invocado.IniciaInvocacao();
+                        zumbis.Add(invocado);
+                    }
+
+                    zumbisInvocadosNesteCiclo = true;
+                }
+                else if (!jerisvaldo.DeveSpawnarZumbis)
+                {
+                    zumbisInvocadosNesteCiclo = false;
+                }
+            }
+
             if (EstadoJogo.VidaPontos <= 0 && !GameOverUI.Ativo)
             {
                 GameOverUI.Inicia();
                 Efeitos.Shake(15f, 0.6f);
             }
 
-            if (EstadoJogo.EhDia)
+            if (EstadoJogo.EhDia && !eventoTelefone.ArenaAtiva)
             {
                 tempoSpawn += delta;
                 if (tempoSpawn >= TempoEntreSpawns && minerios.Count < MaxMineriosNoMapa)
@@ -388,8 +529,12 @@ public static class Program
                 }
             }
 
-            Vector2 alvoCamera = jogador.Centro() + Efeitos.OffsetShake();
-            camera.Target = Vector2.Lerp(camera.Target, alvoCamera, 0.05f);
+            if (!eventoTelefone.ControlaCamera)
+            {
+                Vector2 alvoCamera = jogador.Centro() + Efeitos.OffsetShake();
+                camera.Target = Vector2.Lerp(camera.Target, alvoCamera, 0.05f);
+                camera.Zoom += (0.75f - camera.Zoom) * 0.05f;
+            }
 
             Raylib.BeginDrawing();
             Raylib.BeginMode2D(camera);
@@ -434,6 +579,15 @@ public static class Program
                 });
             }
 
+            if (eventoTelefone.TelefoneVisivel)
+            {
+                coisas.Add(new CoisaDesenhavel
+                {
+                    BaseY = eventoTelefone.PosicaoTelefone.Y + 80f,
+                    Desenha = () => eventoTelefone.DesenhaTelefone()
+                });
+            }
+
             foreach (var z in zumbis)
             {
                 var zLocal = z;
@@ -446,6 +600,16 @@ public static class Program
                             DesenhaOutlineZumbi(zLocal);
                         zLocal.Desenha();
                     }
+                });
+            }
+
+            if (jerisvaldo != null && eventoTelefone.ArenaAtiva)
+            {
+                var bossLocal = jerisvaldo;
+                coisas.Add(new CoisaDesenhavel
+                {
+                    BaseY = bossLocal.Pos.Y + bossLocal.TamanhoVisual,
+                    Desenha = () => bossLocal.Desenha()
                 });
             }
 
@@ -467,8 +631,10 @@ public static class Program
 
             CicloDiaNoite.Desenha();
             HUD.Desenha();
+            if (eventoTelefone.BatalhaAtiva && jerisvaldo != null)
+                jerisvaldo.DesenhaInterface();
 
-            if (!travado && !dormindo)
+            if (!eventoTelefone.Ativo && !travado && !dormindo)
             {
                 if (pertoDaForja) DesenhaAviso("Pressione E para abrir a forja");
                 else if (pertoDaCasa) DesenhaAviso("Pressione E para dormir");
@@ -479,6 +645,7 @@ public static class Program
 
             OverlaySono.Desenha();
             GameOverUI.Desenha();
+            eventoTelefone.DesenhaInterface(jogador.Centro());
 
             Raylib.EndDrawing();
         }
@@ -629,6 +796,35 @@ public static class Program
                 return true;
         }
         return false;
+    }
+
+    static List<Sound> CarregaEfeitos(params string[] caminhos)
+    {
+        List<Sound> efeitos = new();
+        foreach (string caminho in caminhos)
+        {
+            if (File.Exists(caminho))
+                efeitos.Add(AudioManager.RegistraEfeito(caminho));
+        }
+
+        return efeitos;
+    }
+
+    static void TocaVariacao(List<Sound> efeitos, ref int ultimaVariacao)
+    {
+        if (efeitos.Count == 0) return;
+
+        int indice = Random.Shared.Next(efeitos.Count);
+        if (efeitos.Count > 1 && indice == ultimaVariacao)
+            indice = (indice + 1 + Random.Shared.Next(efeitos.Count - 1)) % efeitos.Count;
+
+        ultimaVariacao = indice;
+        AudioManager.TocaEfeito(efeitos[indice]);
+    }
+
+    static string MusicaDoHorario()
+    {
+        return EstadoJogo.EhDia ? MusicaDoDia : MusicaDaNoite;
     }
 
     static void DesenhaAviso(string texto)

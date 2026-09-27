@@ -64,6 +64,12 @@ public static class MenuUI
             return;
         }
 
+        if ((input.MenuConfirm || input.MenuCancel) &&
+            !capturandoTecla.HasValue && !capturandoBotao.HasValue)
+        {
+            AudioManager.TocaCliqueMenu();
+        }
+
         switch (tela)
         {
             case TelaMenu.Principal: AtualizaPrincipal(input); break;
@@ -81,8 +87,8 @@ public static class MenuUI
 
     static void AtualizaPrincipal(InputState input)
     {
-        if (input.MenuDown) selecionado = (selecionado + 1) % OpcoesPrincipal.Length;
-        if (input.MenuUp) selecionado = (selecionado - 1 + OpcoesPrincipal.Length) % OpcoesPrincipal.Length;
+        if (input.MenuDown) DefineSelecao((selecionado + 1) % OpcoesPrincipal.Length);
+        if (input.MenuUp) DefineSelecao((selecionado - 1 + OpcoesPrincipal.Length) % OpcoesPrincipal.Length);
 
         if (!input.MenuConfirm)
             return;
@@ -98,8 +104,8 @@ public static class MenuUI
 
     static void AtualizaSlots(InputState input)
     {
-        if (input.MenuDown) selecionado = (selecionado + 1) % SaveSystem.MaxSlots;
-        if (input.MenuUp) selecionado = (selecionado - 1 + SaveSystem.MaxSlots) % SaveSystem.MaxSlots;
+        if (input.MenuDown) DefineSelecao((selecionado + 1) % SaveSystem.MaxSlots);
+        if (input.MenuUp) DefineSelecao((selecionado - 1 + SaveSystem.MaxSlots) % SaveSystem.MaxSlots);
 
         if (input.MenuCancel)
         {
@@ -128,8 +134,8 @@ public static class MenuUI
 
         List<string> linhas = MontaLinhasConfig();
 
-        if (input.MenuDown) selecionado = (selecionado + 1) % linhas.Count;
-        if (input.MenuUp) selecionado = (selecionado - 1 + linhas.Count) % linhas.Count;
+        if (input.MenuDown) DefineSelecao((selecionado + 1) % linhas.Count);
+        if (input.MenuUp) DefineSelecao((selecionado - 1 + linhas.Count) % linhas.Count);
 
         if (input.MenuCancel)
         {
@@ -208,18 +214,33 @@ public static class MenuUI
         int total = Enum.GetValues(typeof(AbaConfig)).Length;
         aba = (AbaConfig)(((int)aba + direcao + total) % total);
         selecionado = 0;
+        AudioManager.TocaSelecaoMenu();
+    }
+
+    static void DefineSelecao(int novoSelecionado)
+    {
+        if (selecionado == novoSelecionado) return;
+
+        selecionado = novoSelecionado;
+        AudioManager.TocaSelecaoMenu();
     }
 
     static void AjustaVolumeMusica(float delta)
     {
-        ConfiguracoesJogo.VolumeMusica = Math.Clamp(ConfiguracoesJogo.VolumeMusica + delta, 0f, 1f);
+        float volumeAnterior = ConfiguracoesJogo.VolumeMusica;
+        ConfiguracoesJogo.VolumeMusica = Math.Clamp(volumeAnterior + delta, 0f, 1f);
+        if (ConfiguracoesJogo.VolumeMusica == volumeAnterior) return;
         ConfiguracoesJogo.AplicaVolumes();
+        AudioManager.TocaSelecaoMenu();
     }
 
     static void AjustaVolumeEfeitos(float delta)
     {
-        ConfiguracoesJogo.VolumeEfeitos = Math.Clamp(ConfiguracoesJogo.VolumeEfeitos + delta, 0f, 1f);
+        float volumeAnterior = ConfiguracoesJogo.VolumeEfeitos;
+        ConfiguracoesJogo.VolumeEfeitos = Math.Clamp(volumeAnterior + delta, 0f, 1f);
+        if (ConfiguracoesJogo.VolumeEfeitos == volumeAnterior) return;
         ConfiguracoesJogo.AplicaVolumes();
+        AudioManager.TocaSelecaoMenu();
     }
 
     static AcaoJogo[] AcoesTeclado()

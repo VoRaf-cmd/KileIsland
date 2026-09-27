@@ -32,14 +32,20 @@ public static class InventarioUI
 
         if (podeInteragir)
         {
-            if (input.MenuDown) botaoSelecionado = (botaoSelecionado + 1) % totalBotoes;
+            if (input.MenuDown)
+            {
+                botaoSelecionado = (botaoSelecionado + 1) % totalBotoes;
+                AudioManager.TocaSelecaoMenu();
+            }
             if (input.MenuUp)
             {
                 botaoSelecionado--;
                 if (botaoSelecionado < 0) botaoSelecionado = totalBotoes - 1;
+                AudioManager.TocaSelecaoMenu();
             }
             if (input.MenuCancel)
             {
+                AudioManager.TocaCliqueMenu();
                 Program.InventarioAberto = false;
                 return;
             }

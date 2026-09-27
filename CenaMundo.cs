@@ -5,16 +5,53 @@ namespace KileIsland;
 
 public static class CenaMundo
 {
-    public const int LarguraMapa = 2600;
-    public const int AlturaMapa = 1500;
+    const int LarguraMapaInicial = 2600;
+    const int AlturaMapaInicial = 1500;
+    const int GramaLarguraInicial = 2400;
+    const int GramaAlturaInicial = 1300;
 
-    public const int GramaLargura = 2400;
-    public const int GramaAltura = 1300;
+    public static int LarguraMapa { get; private set; } = LarguraMapaInicial;
+    public static int AlturaMapa { get; private set; } = AlturaMapaInicial;
 
-    public static Vector2 PosIlha = new Vector2(
+    public static int GramaLargura { get; private set; } = GramaLarguraInicial;
+    public static int GramaAltura { get; private set; } = GramaAlturaInicial;
+
+    public static Vector2 PosIlha { get; private set; } = new Vector2(
         (LarguraMapa - GramaLargura) / 2f,
         (AlturaMapa - GramaAltura) / 2f
     );
+
+    public static Vector2 CentroIlha => new Vector2(
+        PosIlha.X + GramaLargura / 2f,
+        PosIlha.Y + GramaAltura / 2f
+    );
+
+    public static void AmpliaIlha(float multiplicador)
+    {
+        if (multiplicador <= 1f) return;
+
+        Vector2 centro = CentroIlha;
+        GramaLargura = (int)MathF.Round(GramaLargura * multiplicador);
+        GramaAltura = (int)MathF.Round(GramaAltura * multiplicador);
+        LarguraMapa = Math.Max(LarguraMapa, GramaLargura + 200);
+        AlturaMapa = Math.Max(AlturaMapa, GramaAltura + 200);
+        PosIlha = new Vector2(
+            centro.X - GramaLargura / 2f,
+            centro.Y - GramaAltura / 2f
+        );
+    }
+
+    public static void RestauraDimensoes()
+    {
+        LarguraMapa = LarguraMapaInicial;
+        AlturaMapa = AlturaMapaInicial;
+        GramaLargura = GramaLarguraInicial;
+        GramaAltura = GramaAlturaInicial;
+        PosIlha = new Vector2(
+            (LarguraMapa - GramaLargura) / 2f,
+            (AlturaMapa - GramaAltura) / 2f
+        );
+    }
 
     static Texture2D texturaIlha;
     static bool tentouCarregar = false;

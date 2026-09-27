@@ -37,6 +37,7 @@ public static class OverlaySono
                 {
                     EstadoJogo.Dia++;
                     EstadoJogo.EhDia = true;   // acorda de dia
+                    EstadoJogo.VidaPontos = EstadoJogo.VidaMaxPontos;
                     CicloDiaNoite.ForcaDia();  // reseta o relógio do ciclo
                     Estado = EstadoSono.FadeIn;
                     Tempo = 0f;

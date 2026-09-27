@@ -17,8 +17,8 @@ public enum AcaoJogo
 
 class ConfiguracoesSalvas
 {
-    public float VolumeMusica { get; set; } = 0.6f;
-    public float VolumeEfeitos { get; set; } = 0.8f;
+    public float VolumeMusica { get; set; } = 0.1f;
+    public float VolumeEfeitos { get; set; } = 0.6f;
     public Dictionary<string, int> TeclasTeclado { get; set; } = new();
     public Dictionary<string, int> BotoesControle { get; set; } = new();
 }
@@ -27,8 +27,8 @@ public static class ConfiguracoesJogo
 {
     const string CaminhoArquivo = "configuracoes.json";
 
-    public static float VolumeMusica = 0.6f;
-    public static float VolumeEfeitos = 0.8f;
+    public static float VolumeMusica = 0.1f;
+    public static float VolumeEfeitos = 0.6f;
 
     public static readonly Dictionary<AcaoJogo, KeyboardKey> Teclado = new()
     {

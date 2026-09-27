@@ -57,6 +57,11 @@ public class Zumbi
 
     bool perseguindo;
 
+    Vector2 posFinalInvocacao;
+    float tempoInvocacao;
+    float duracaoInvocacao;
+    float alturaInvocacao;
+
     // Animação
     bool paradoAnimacaoAnterior;
 
@@ -66,6 +71,18 @@ public class Zumbi
     public const float FpsIdle = 6f;
 
     public float TamanhoVisual => TamanhoArte * Escala;
+    public float AlfaInvocacao => duracaoInvocacao <= 0f
+        ? 1f
+        : Math.Clamp(tempoInvocacao / duracaoInvocacao, 0f, 1f);
+
+    public void IniciaInvocacao(float duracao = 1.2f, float altura = 72f)
+    {
+        posFinalInvocacao = Pos;
+        tempoInvocacao = 0f;
+        duracaoInvocacao = duracao;
+        alturaInvocacao = altura;
+        Pos = new Vector2(Pos.X, posFinalInvocacao.Y + alturaInvocacao);
+    }
 
     public static void CarregaSprites()
     {
@@ -97,6 +114,25 @@ public class Zumbi
     {
         if (Estado == EstadoZumbi.Morto)
             return;
+
+        if (duracaoInvocacao > 0f)
+        {
+            tempoInvocacao = Math.Min(duracaoInvocacao, tempoInvocacao + delta);
+            float progresso = Math.Clamp(tempoInvocacao / duracaoInvocacao, 0f, 1f);
+            Pos = new Vector2(
+                posFinalInvocacao.X,
+                posFinalInvocacao.Y + alturaInvocacao * (1f - progresso)
+            );
+
+            if (progresso < 1f)
+            {
+                Estado = EstadoZumbi.Parado;
+                AtualizaAnimacao(delta);
+                return;
+            }
+
+            duracaoInvocacao = 0f;
+        }
 
         TempoTremor = Math.Max(0f, TempoTremor - delta);
 
@@ -392,7 +428,10 @@ public class Zumbi
             return;
         }
 
-        DesenhaCorpo(tremorX, Color.White, 0f, false);
+        byte alphaInvocacao = (byte)(AlfaInvocacao * 255f);
+        Color corInvocacao = new Color(
+            (byte)255, (byte)255, (byte)255, alphaInvocacao);
+        DesenhaCorpo(tremorX, corInvocacao, 0f, false);
     }
 
     void DesenhaMorte(float progresso, bool comFogo)
@@ -509,7 +548,11 @@ public class Zumbi
                 dest,
                 Vector2.Zero,
                 rotacao,
-                new Color((byte)60, (byte)140, (byte)60, (byte)255)
+                new Color(
+                    (byte)60,
+                    (byte)140,
+                    (byte)60,
+                    (byte)(255f * AlfaInvocacao))
             );
         }
     }

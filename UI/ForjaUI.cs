@@ -33,14 +33,20 @@ public static class ForjaUI
 
         if (podeInteragir)
         {
-            if (input.MenuDown) botaoSelecionado = (botaoSelecionado + 1) % IdsBotoes.Count;
+            if (input.MenuDown)
+            {
+                botaoSelecionado = (botaoSelecionado + 1) % IdsBotoes.Count;
+                AudioManager.TocaSelecaoMenu();
+            }
             if (input.MenuUp)
             {
                 botaoSelecionado--;
                 if (botaoSelecionado < 0) botaoSelecionado = IdsBotoes.Count - 1;
+                AudioManager.TocaSelecaoMenu();
             }
             if (input.MenuCancel)
             {
+                AudioManager.TocaCliqueMenu();
                 Program.ForjaAberta = false;
                 return;
             }
@@ -150,6 +156,10 @@ public static class ForjaUI
             y + (altura - tamTexto) / 2,
             tamTexto, corTexto);
 
-        return clicadoMouse || confirmadoControle;
+        bool ativado = clicadoMouse || confirmadoControle;
+        if (ativado)
+            AudioManager.TocaCliqueMenu();
+
+        return ativado;
     }
 }
