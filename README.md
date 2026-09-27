@@ -9,9 +9,7 @@ KileIsland é um jogo 2D de sobrevivência feito em C# com Raylib-cs. Explore a 
 
 Para iniciar, rode este comando na pasta do projeto:
 
-```powershell
-dotnet run
-```
+    dotnet run
 
 O jogo procura sprites e arquivos locais a partir da pasta em que é iniciado.
 
@@ -45,18 +43,37 @@ O ciclo tem 90 segundos de dia e 90 segundos de noite. Também é possível dorm
 
 A Juju aparece no cenário, mas ainda não tem interação própria.
 
+### Evento do telefone
+
+Durante o jogo, um telefone toca e inicia um evento especial. Atenda para avançar na história e desbloquear a batalha contra o boss.
+
+### Batalha de boss
+
+Ao final do evento do telefone, o boss **Jerisvaldo** aparece. Derrote-o para progredir. Durante a luta, ele invoca zumbis para atrapalhar o jogador.
+
 ## Menu, configuracoes e saves
 
 O menu inicial oferece **Continuar**, **Novo Jogo**, **Configurações** e **Sair**. Há três slots de progresso. Ao sobreviver uma noite, o jogo salva automaticamente no slot selecionado.
 
-O volume da música e dos efeitos, além das teclas e dos botões remapeados, fica em `configuracoes.json`. O progresso fica em `save1.json`, `save2.json` e `save3.json`. Esses arquivos são locais e não precisam ser compartilhados.
+O volume da música e dos efeitos, além das teclas e dos botões remapeados, fica em `Dados/configuracoes.json`. O progresso fica em `Dados/save1.json`, `Dados/save2.json` e `Dados/save3.json`. Esses arquivos são locais e não precisam ser compartilhados (estão no `.gitignore`).
 
 ## Codigo e recursos
 
-- `Program.cs`: inicialização, loop principal, combate, coleta e spawn.
-- `Jogador.cs`, `Zumbi.cs` e `NavegacaoZumbi.cs`: movimento, combate, IA e navegação.
-- `Dados/EstadoJogo.cs` e `SaveSystem.cs`: estado da partida e saves.
-- `MenuUI.cs`, `UI/` e `ConfiguracoesJogo.cs`: menus, HUD, forja, inventário e configurações.
-- `assets/sprites/`: sprites do jogador, dos zumbis, da ilha, dos minérios, das estruturas e das espadas.
+- `Program.cs`: inicialização e loop principal.
+- `Core/`: `AudioManager.cs` (áudio) e `Input.cs` (entrada do jogador).
+- `Entities/`: `Jogador.cs`, `Zumbi.cs`, `Drop.cs` e `Jerisvaldo.cs` (boss) — movimento, combate e entidades.
+- `Eventos/`: `CicloDiaNoite.cs` (ciclo dia/noite) e `EventoTelefone.cs` (evento especial).
+- `Systems/`: `ConfiguracoesJogo.cs` (configurações) e `SaveSystem.cs` (saves).
+- `World/`: `CenaMundo.cs`, `Minerio.cs`, `NavegacaoZumbi.cs` e `ObjetoMapa.cs` — mundo, minérios e navegação.
+- `UI/`: `MenuUI.cs`, `HUD.cs`, `Inventario.cs`, `ForjaUI.cs`, `GameOver.cs`, `Efeitos.cs` e `OverlaySono.cs` — menus e HUD.
+- `Dados/`: `EstadoJogo.cs` (estado da partida).
+- `assets/sprites/` e `assets/audio/`: sprites e sons do jogador, zumbis, ilha, minérios, estruturas, espadas e boss.
 
-A versão atual do projeto é **0.2.0**. O Raylib-cs é restaurado pelo .NET a partir do `KileIsland.csproj`.
+A versão atual do projeto é **0.3.0**. O Raylib-cs é restaurado pelo .NET a partir do `KileIsland.csproj`.
+
+### Problemas conhecidos (v0.3.0)
+
+- O boss não está animando o spawn de zumbis.
+- Os zumbis não estão ficando mais fortes a cada noite.
+
+Esses bugs estão sendo investigados e serão corrigidos nas próximas versões.
