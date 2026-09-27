@@ -61,8 +61,8 @@ public static class CenaMundo
         if (tentouCarregar) return;
         tentouCarregar = true;
 
-        if (System.IO.File.Exists("Assets/sprites/ilha.png"))
-            texturaIlha = Raylib.LoadTexture("Assets/sprites/ilha.png");
+        if (System.IO.File.Exists("assets/sprites/ilha.png"))
+            texturaIlha = Raylib.LoadTexture("assets/sprites/ilha.png");
         else
             texturaIlha = new Texture2D();
     }

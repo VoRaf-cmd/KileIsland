@@ -93,7 +93,7 @@ public sealed class Jerisvaldo
         if (tentouCarregarBoss) return;
         tentouCarregarBoss = true;
 
-        const string caminho = "Assets/sprites/boss/jerisvaldo.png";
+        const string caminho = "assets/sprites/boss/jerisvaldo.png";
         if (System.IO.File.Exists(caminho))
             texturaBoss = Raylib.LoadTexture(caminho);
     }
@@ -103,7 +103,7 @@ public sealed class Jerisvaldo
         if (tentouCarregarMarcaX) return;
         tentouCarregarMarcaX = true;
 
-        const string caminho = "Assets/sprites/boss/x.png";
+        const string caminho = "assets/sprites/boss/x.png";
         if (System.IO.File.Exists(caminho))
             texturaMarcaX = Raylib.LoadTexture(caminho);
     }

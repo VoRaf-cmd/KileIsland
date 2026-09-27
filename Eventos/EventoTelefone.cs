@@ -34,15 +34,15 @@ public sealed class EventoTelefone
     private const float IntervaloToqueTelefone = 2.4f;
 
     private const string CaminhoSprite =
-        "Assets/sprites/telefone.png";
+        "assets/sprites/telefone.png";
 
     private const string CaminhoSomTelefone =
-        "Assets/audio/telefone/trim.wav";
+        "assets/audio/telefone/trim.wav";
 
     private static readonly string[] CaminhosSomAparecer =
     {
-        "Assets/audio/telefone/aparecer.wav",
-        "Assets/audio/telefone/aparecer.mp3"
+        "assets/audio/telefone/aparecer.wav",
+        "assets/audio/telefone/aparecer.mp3"
     };
 
     private static Sound somAparecer;

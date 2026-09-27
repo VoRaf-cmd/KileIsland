@@ -91,8 +91,8 @@ public class Zumbi
 
         tentouCarregar = true;
 
-        WalkLado = Animacao.Carrega("Assets/sprites/zumbi/walk_lado.png", 16, 4);
-        IdleLado = Animacao.Carrega("Assets/sprites/zumbi/idle_lado.png", 16, 4);
+        WalkLado = Animacao.Carrega("assets/sprites/zumbi/walk_lado.png", 16, 4);
+        IdleLado = Animacao.Carrega("assets/sprites/zumbi/idle_lado.png", 16, 4);
     }
 
     public Vector2 Centro()
