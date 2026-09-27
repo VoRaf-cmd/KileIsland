@@ -269,6 +269,10 @@ UpgradeLog*.htm
 ServiceFabricBackup/
 *.rptproj.bak
 
+# Local game settings and save slots
+/configuracoes.json
+/save*.json
+
 # SQL Server files
 *.mdf
 *.ldf
