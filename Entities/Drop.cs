@@ -69,9 +69,9 @@ public class Drop
     {
         if (!cacheIniciado)
         {
-            cache[TipoMinerio.Cobre] = Carrega("assets/sprites/minerios/drop_cobre.png");
-            cache[TipoMinerio.Ferro] = Carrega("assets/sprites/minerios/drop_ferro.png");
-            cache[TipoMinerio.Ouro]  = Carrega("assets/sprites/minerios/drop_ouro.png");
+            cache[TipoMinerio.Cobre] = Carrega("Assets/sprites/minerios/drop_cobre.png");
+            cache[TipoMinerio.Ferro] = Carrega("Assets/sprites/minerios/drop_ferro.png");
+            cache[TipoMinerio.Ouro]  = Carrega("Assets/sprites/minerios/drop_ouro.png");
             cacheIniciado = true;
         }
         return cache[tipo];

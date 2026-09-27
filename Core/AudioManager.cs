@@ -35,15 +35,15 @@ public static class AudioManager
 
     public static void CarregaSonsMenu()
     {
-        if (File.Exists("assets/audio/menus/clicar.mp3"))
+        if (File.Exists("Assets/audio/menus/clicar.mp3"))
         {
-            somMenuClicar = RegistraEfeito("assets/audio/menus/clicar.mp3");
+            somMenuClicar = RegistraEfeito("Assets/audio/menus/clicar.mp3");
             temSomMenuClicar = true;
         }
 
-        if (File.Exists("assets/audio/menus/selecionar.mp3"))
+        if (File.Exists("Assets/audio/menus/selecionar.mp3"))
         {
-            somMenuSelecionar = RegistraEfeito("assets/audio/menus/selecionar.mp3");
+            somMenuSelecionar = RegistraEfeito("Assets/audio/menus/selecionar.mp3");
             temSomMenuSelecionar = true;
         }
     }

@@ -82,9 +82,9 @@ public class Minerio
     {
         if (!cacheIniciado)
         {
-            cache[TipoMinerio.Cobre] = Carrega("assets/sprites/minerios/cobre.png");
-            cache[TipoMinerio.Ferro] = Carrega("assets/sprites/minerios/ferro.png");
-            cache[TipoMinerio.Ouro]  = Carrega("assets/sprites/minerios/ouro.png");
+            cache[TipoMinerio.Cobre] = Carrega("Assets/sprites/minerios/cobre.png");
+            cache[TipoMinerio.Ferro] = Carrega("Assets/sprites/minerios/ferro.png");
+            cache[TipoMinerio.Ouro]  = Carrega("Assets/sprites/minerios/ouro.png");
             cacheIniciado = true;
         }
         return cache[tipo];

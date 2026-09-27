@@ -270,8 +270,9 @@ ServiceFabricBackup/
 *.rptproj.bak
 
 # Local game settings and save slots
-/configuracoes.json
-/save*.json
+/Dados/configuracoes.json
+/Dados/save*.json
+/LISTADEAFAZERES.*
 
 # SQL Server files
 *.mdf

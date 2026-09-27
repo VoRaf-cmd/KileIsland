@@ -11,7 +11,7 @@ public enum AcaoJogo
     Interagir,
     Inventario,
     TrocarItem,
-    Atacar,     // só faz sentido pro controle - no teclado o ataque é no mouse
+    Atacar,
     Fechar
 }
 
@@ -25,7 +25,9 @@ class ConfiguracoesSalvas
 
 public static class ConfiguracoesJogo
 {
-    const string CaminhoArquivo = "configuracoes.json";
+    // Caminho atualizado para a nova organização do projeto.
+    public static readonly string CaminhoArquivo =
+        Path.Combine("Dados", "configuracoes.json");
 
     public static float VolumeMusica = 0.1f;
     public static float VolumeEfeitos = 0.6f;
@@ -54,7 +56,8 @@ public static class ConfiguracoesJogo
             if (File.Exists(CaminhoArquivo))
             {
                 string json = File.ReadAllText(CaminhoArquivo);
-                ConfiguracoesSalvas dados = JsonSerializer.Deserialize<ConfiguracoesSalvas>(json);
+                ConfiguracoesSalvas? dados =
+                    JsonSerializer.Deserialize<ConfiguracoesSalvas>(json);
 
                 if (dados != null)
                 {
@@ -63,11 +66,17 @@ public static class ConfiguracoesJogo
 
                     foreach (AcaoJogo acao in Enum.GetValues(typeof(AcaoJogo)))
                     {
-                        if (dados.TeclasTeclado.TryGetValue(acao.ToString(), out int tecla))
+                        if (dados.TeclasTeclado.TryGetValue(
+                            acao.ToString(), out int tecla))
+                        {
                             Teclado[acao] = (KeyboardKey)tecla;
+                        }
 
-                        if (dados.BotoesControle.TryGetValue(acao.ToString(), out int botao))
+                        if (dados.BotoesControle.TryGetValue(
+                            acao.ToString(), out int botao))
+                        {
                             Controle[acao] = (GamepadButton)botao;
+                        }
                     }
                 }
             }
@@ -96,12 +105,16 @@ public static class ConfiguracoesJogo
 
         try
         {
-            string json = JsonSerializer.Serialize(dados, new JsonSerializerOptions { WriteIndented = true });
+            string json = JsonSerializer.Serialize(
+                dados,
+                new JsonSerializerOptions { WriteIndented = true }
+            );
+
             File.WriteAllText(CaminhoArquivo, json);
         }
         catch
         {
-            // Sem permissão de escrita, por exemplo: o jogo continua normalmente, só não persiste.
+            // Sem permissão de escrita: o jogo continua normalmente.
         }
     }
 

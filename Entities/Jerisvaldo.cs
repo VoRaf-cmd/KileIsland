@@ -21,6 +21,7 @@ public sealed class Jerisvaldo
 {
     public const int TamanhoArte = 48;
     public const int Escala = 6;
+    public const int QuantidadeQuadros = 9;
     public const float Velocidade = 145f;
     public const int HitboxXArte = 10;
     public const int HitboxYArte = 8;
@@ -29,6 +30,8 @@ public sealed class Jerisvaldo
 
     private static Texture2D texturaMarcaX;
     private static bool tentouCarregarMarcaX;
+    private static Texture2D texturaBoss;
+    private static bool tentouCarregarBoss;
 
     public Vector2 Pos { get; private set; }
     public float TamanhoVisual => TamanhoArte * Escala;
@@ -85,12 +88,22 @@ public sealed class Jerisvaldo
         alvoVoo = posicaoPouso;
     }
 
+    public static void CarregaSprite()
+    {
+        if (tentouCarregarBoss) return;
+        tentouCarregarBoss = true;
+
+        const string caminho = "Assets/sprites/boss/jerisvaldo.png";
+        if (System.IO.File.Exists(caminho))
+            texturaBoss = Raylib.LoadTexture(caminho);
+    }
+
     public static void CarregaSpriteMarcaX()
     {
         if (tentouCarregarMarcaX) return;
         tentouCarregarMarcaX = true;
 
-        const string caminho = "assets/sprites/boss/x.png";
+        const string caminho = "Assets/sprites/boss/x.png";
         if (System.IO.File.Exists(caminho))
             texturaMarcaX = Raylib.LoadTexture(caminho);
     }
@@ -300,36 +313,44 @@ public sealed class Jerisvaldo
         switch (estadoAtual)
         {
             case EstadoBoss.VooNormal:
-                if (tempoQuadroAnim >= 0.2f)
+                if (quadroAnimacao < 0 || quadroAnimacao >= 4)
+                    quadroAnimacao = 0;
+                if (tempoQuadroAnim >= 0.15f)
                 {
-                    quadroAnimacao = (quadroAnimacao == 0) ? 1 : 0; // Alterna frames 0 e 1 (Voo)
+                    quadroAnimacao = (quadroAnimacao + 1) % 4;
                     tempoQuadroAnim = 0f;
                 }
                 break;
 
             case EstadoBoss.SubindoCeu:
-                quadroAnimacao = 2; // Frame 2 (Impulso)
+                quadroAnimacao = 4;
+                tempoQuadroAnim = 0f;
                 break;
 
             case EstadoBoss.CaindoSpawn:
             case EstadoBoss.CaindoStomp:
-                quadroAnimacao = 3; // Frame 3 (Queda)
+                quadroAnimacao = 5;
+                tempoQuadroAnim = 0f;
                 break;
 
             case EstadoBoss.InvocandoZumbis:
-                quadroAnimacao = 4; // Frame 4 (Invocação)
+                quadroAnimacao = 6;
+                tempoQuadroAnim = 0f;
                 break;
 
             case EstadoBoss.Vulneravel:
+                if (quadroAnimacao < 7 || quadroAnimacao > 8)
+                    quadroAnimacao = 7;
                 if (tempoQuadroAnim >= 0.3f)
                 {
-                    quadroAnimacao = (quadroAnimacao == 5) ? 6 : 5; // Alterna frames 5 e 6 (Tonto)
+                    quadroAnimacao = quadroAnimacao == 7 ? 8 : 7;
                     tempoQuadroAnim = 0f;
                 }
                 break;
 
             default:
                 quadroAnimacao = 0;
+                tempoQuadroAnim = 0f;
                 break;
         }
     }
@@ -354,7 +375,38 @@ public sealed class Jerisvaldo
 
         Rectangle destino = new Rectangle(Pos.X, Pos.Y + bob, TamanhoVisual, TamanhoVisual);
 
-        DesenhaPlaceholder(destino);
+        if (texturaBoss.Id != 0)
+        {
+            Rectangle origem = new Rectangle(
+                quadroAnimacao * TamanhoArte,
+                0,
+                TamanhoArte,
+                TamanhoArte);
+            Color cor = tempoPiscaDano > 0f
+                ? new Color((byte)255, (byte)255, (byte)255, (byte)235)
+                : Color.White;
+
+            Raylib.DrawTexturePro(
+                texturaBoss,
+                origem,
+                destino,
+                Vector2.Zero,
+                0f,
+                cor);
+
+            if (tempoPiscaDano > 0f)
+                Raylib.DrawTexturePro(
+                    texturaBoss,
+                    origem,
+                    destino,
+                    Vector2.Zero,
+                    0f,
+                    new Color((byte)255, (byte)255, (byte)255, (byte)180));
+        }
+        else
+        {
+            DesenhaPlaceholder(destino);
+        }
     }
 
     private void DesenharMarcaX()

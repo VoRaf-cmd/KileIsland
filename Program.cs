@@ -21,9 +21,9 @@ public static class Program
     public const int PicaretadasParaQuebrar = 3;
 
     public const int XpPorZumbi = 10;
-    const string MusicaDoMenu = "assets/audio/musicas/menu.wav";
-    const string MusicaDoDia = "assets/audio/musicas/musica_dia.mp3";
-    const string MusicaDaNoite = "assets/audio/musicas/musica_noite.mp3";
+    const string MusicaDoMenu = "Assets/audio/musicas/menu.wav";
+    const string MusicaDoDia = "Assets/audio/musicas/musica_dia.mp3";
+    const string MusicaDaNoite = "Assets/audio/musicas/musica_noite.mp3";
 
     public static bool ForjaAberta = false;
     public static bool InventarioAberto = false;
@@ -48,15 +48,15 @@ public static class Program
         AudioManager.CarregaSonsMenu();
         EventoTelefone.CarregaAudio();
         List<Sound> sonsSwooshEspada = CarregaEfeitos(
-            "assets/audio/espada/swoosh_1.wav",
-            "assets/audio/espada/swoosh_2.wav",
-            "assets/audio/espada/swoosh_3.mp3");
+            "Assets/audio/espada/swoosh_1.wav",
+            "Assets/audio/espada/swoosh_2.wav",
+            "Assets/audio/espada/swoosh_3.mp3");
         List<Sound> sonsAcertoEspada = CarregaEfeitos(
-            "assets/audio/espada/hit_1.wav",
-            "assets/audio/espada/hit_2.mp3",
-            "assets/audio/espada/hit_3.wav");
+            "Assets/audio/espada/hit_1.wav",
+            "Assets/audio/espada/hit_2.mp3",
+            "Assets/audio/espada/hit_3.wav");
         List<Sound> sonsPicareta = CarregaEfeitos(
-            "assets/audio/picareta/hit.wav");
+            "Assets/audio/picareta/hit.wav");
         int ultimaVariacaoSwoosh = -1;
         int ultimaVariacaoAcerto = -1;
         int ultimaVariacaoPicareta = -1;
@@ -91,6 +91,7 @@ public static class Program
         HUD.Carrega();
         CenaMundo.Carrega();
         Zumbi.CarregaSprites();
+        Jerisvaldo.CarregaSprite();
         Jerisvaldo.CarregaSpriteMarcaX();
 
         Vector2 posInicial = new Vector2(
@@ -102,21 +103,21 @@ public static class Program
         List<ObjetoMapa> objetos = new List<ObjetoMapa>();
 
         // A colisão ocupa a base para permitir que o Kile passe por trás.
-        ObjetoMapa casa = ObjetoMapa.Cria("assets/sprites/casa.png",
+        ObjetoMapa casa = ObjetoMapa.Cria("Assets/sprites/casa.png",
             new Vector2(180, 180), 384, 384, true,
             new Color(140, 90, 50, 255), "CASA",
             alturaColisao: 96);
 
         objetos.Add(casa);
 
-        ObjetoMapa juju = ObjetoMapa.Cria("assets/sprites/juju.png",
+        ObjetoMapa juju = ObjetoMapa.Cria("Assets/sprites/juju.png",
             new Vector2(1700, 200), 256, 256, true,
             new Color(120, 60, 160, 255), "JUJU",
             alturaColisao: 64);
 
         objetos.Add(juju);
 
-        ObjetoMapa forja = ObjetoMapa.Cria("assets/sprites/forja.png",
+        ObjetoMapa forja = ObjetoMapa.Cria("Assets/sprites/forja.png",
             new Vector2(1700, 1000), 256, 256, true,
             Color.Gray, "FORJA",
             alturaColisao: 64);

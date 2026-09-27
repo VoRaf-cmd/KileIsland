@@ -53,10 +53,10 @@ public class Jogador
     const int TamanhoPicaretaVisual = 96;
     static readonly string[] caminhosEspadas =
     {
-        "assets/sprites/espadas/espada_madeira.png",
-        "assets/sprites/espadas/espada_pedra.png",
-        "assets/sprites/espadas/espada_ferro.png",
-        "assets/sprites/espadas/espada_ouro.png"
+        "Assets/sprites/espadas/espada_madeira.png",
+        "Assets/sprites/espadas/espada_pedra.png",
+        "Assets/sprites/espadas/espada_ferro.png",
+        "Assets/sprites/espadas/espada_ouro.png"
     };
     static Texture2D[] texturasEspadas = new Texture2D[caminhosEspadas.Length];
     static bool tentouCarregarEspadas = false;
@@ -64,16 +64,16 @@ public class Jogador
 
     public void CarregaSprites()
     {
-        IdleLado = Animacao.Carrega("assets/sprites/kile/idle_lado.png", 16, 3);
-        WalkLado = Animacao.Carrega("assets/sprites/kile/walk_lado.png", 16, 4);
+        IdleLado = Animacao.Carrega("Assets/sprites/kile/idle_lado.png", 16, 3);
+        WalkLado = Animacao.Carrega("Assets/sprites/kile/walk_lado.png", 16, 4);
     }
 
     public static void CarregaPicareta()
     {
         if (tentouCarregarPicareta) return;
         tentouCarregarPicareta = true;
-        if (System.IO.File.Exists("assets/sprites/picareta.png"))
-            texturaPicareta = Raylib.LoadTexture("assets/sprites/picareta.png");
+        if (System.IO.File.Exists("Assets/sprites/picareta.png"))
+            texturaPicareta = Raylib.LoadTexture("Assets/sprites/picareta.png");
         else
             texturaPicareta = new Texture2D();
     }

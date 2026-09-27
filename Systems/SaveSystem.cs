@@ -32,7 +32,7 @@ public static class SaveSystem
 {
     public const int MaxSlots = 3;
 
-    static string Caminho(int slot) => $"save{slot + 1}.json";
+    static string Caminho(int slot) => Path.Combine("Dados", $"save{slot + 1}.json");
 
     public static DadosSave[] CarregaTodos()
     {
