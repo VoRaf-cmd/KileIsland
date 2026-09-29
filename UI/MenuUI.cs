@@ -5,7 +5,7 @@ using Raylib_cs;
 namespace KileIsland;
 
 enum TelaMenu { Principal, Slots, Configuracoes }
-enum AbaConfig { Audio, Teclado, Controle }
+enum AbaConfig { Audio, Teclado1, Teclado2, Controle1, Controle2 }
 
 public static class MenuUI
 {
@@ -16,8 +16,12 @@ public static class MenuUI
 
     static AcaoJogo? capturandoTecla;
     static AcaoJogo? capturandoBotao;
+    static int jogadorCapturando = 0;
 
     static float bloqueioInput;
+
+    // Mensagem mostrada na tela de configuracoes (conflito de teclas, controle ausente...)
+    static string avisoConfig = "";
 
     static DadosSave[] slots = new DadosSave[SaveSystem.MaxSlots];
     static bool slotsCarregados;
@@ -25,8 +29,9 @@ public static class MenuUI
     public static bool JogoDeveIniciar { get; private set; }
     public static int SlotAtual { get; private set; } = -1;
     public static bool NovoJogo { get; private set; }
+    public static bool CoopAtivo { get; private set; } = false;
 
-    static readonly string[] OpcoesPrincipal = { "Continuar", "Novo Jogo", "Configurações", "Sair" };
+    static readonly string[] OpcoesPrincipal = { "Continuar", "Novo Jogo", "Coop Local", "Configurações", "Sair" };
 
     static readonly GamepadButton[] BotoesCapturaveis =
     {
@@ -48,6 +53,7 @@ public static class MenuUI
         capturandoTecla = null;
         capturandoBotao = null;
         slotsCarregados = false;
+        CoopAtivo = false;
     }
 
     public static void Atualiza(InputState input)
@@ -83,6 +89,7 @@ public static class MenuUI
         tela = novaTela;
         selecionado = 0;
         bloqueioInput = 0.15f;
+        avisoConfig = "";
     }
 
     static void AtualizaPrincipal(InputState input)
@@ -93,13 +100,14 @@ public static class MenuUI
         if (!input.MenuConfirm)
             return;
 
-        switch (selecionado)
-        {
-            case 0: modoContinuar = true; MudaTela(TelaMenu.Slots); break;
-            case 1: modoContinuar = false; MudaTela(TelaMenu.Slots); break;
-            case 2: aba = AbaConfig.Audio; MudaTela(TelaMenu.Configuracoes); break;
-            case 3: Environment.Exit(0); break;
-        }
+switch (selecionado)
+{
+    case 0: modoContinuar = true;  CoopAtivo = false; MudaTela(TelaMenu.Slots); break;
+    case 1: modoContinuar = false; CoopAtivo = false; MudaTela(TelaMenu.Slots); break;
+    case 2: modoContinuar = false; CoopAtivo = true;  MudaTela(TelaMenu.Slots); break;
+    case 3: aba = AbaConfig.Audio; MudaTela(TelaMenu.Configuracoes); break;
+    case 4: Environment.Exit(0); break;
+}
     }
 
     static void AtualizaSlots(InputState input)
@@ -120,6 +128,10 @@ public static class MenuUI
 
         SlotAtual = selecionado;
         NovoJogo = !modoContinuar || !temSave;
+
+        // Continuar um save feito em Coop Local volta como Coop Local.
+        if (modoContinuar && temSave)
+            CoopAtivo = slots[selecionado].Coop;
 
         if (NovoJogo)
             EstadoJogo.Resetar();
@@ -153,10 +165,14 @@ public static class MenuUI
 
         if (aba == AbaConfig.Audio)
             AtualizaAbaAudio(input);
-        else if (aba == AbaConfig.Teclado)
-            AtualizaAbaBindings(input, AcoesTeclado(), teclado: true);
+        else if (aba == AbaConfig.Teclado1)
+            AtualizaAbaBindings(input, AcoesTeclado(), teclado: true, jogador: 0);
+        else if (aba == AbaConfig.Teclado2)
+            AtualizaAbaBindings(input, AcoesTeclado(), teclado: true, jogador: 1);
+        else if (aba == AbaConfig.Controle1)
+            AtualizaAbaBindings(input, AcoesControle(), teclado: false, jogador: 0);
         else
-            AtualizaAbaBindings(input, AcoesControle(), teclado: false);
+            AtualizaAbaBindings(input, AcoesControle(), teclado: false, jogador: 1);
     }
 
     static void AtualizaAbaAudio(InputState input)
@@ -178,7 +194,7 @@ public static class MenuUI
         }
     }
 
-    static void AtualizaAbaBindings(InputState input, AcaoJogo[] acoes, bool teclado)
+    static void AtualizaAbaBindings(InputState input, AcaoJogo[] acoes, bool teclado, int jogador)
     {
         int indiceAcao = selecionado - 1;
 
@@ -186,6 +202,8 @@ public static class MenuUI
         {
             if (input.MenuConfirm)
             {
+                jogadorCapturando = jogador;
+                avisoConfig = "";
                 if (teclado) capturandoTecla = acoes[indiceAcao];
                 else capturandoBotao = acoes[indiceAcao];
             }
@@ -214,6 +232,7 @@ public static class MenuUI
         int total = Enum.GetValues(typeof(AbaConfig)).Length;
         aba = (AbaConfig)(((int)aba + direcao + total) % total);
         selecionado = 0;
+        avisoConfig = "";
         AudioManager.TocaSelecaoMenu();
     }
 
@@ -243,10 +262,10 @@ public static class MenuUI
         AudioManager.TocaSelecaoMenu();
     }
 
-    static AcaoJogo[] AcoesTeclado()
-    {
-        return new[] { AcaoJogo.Interagir, AcaoJogo.Inventario, AcaoJogo.TrocarItem, AcaoJogo.Fechar };
-    }
+static AcaoJogo[] AcoesTeclado()
+{
+    return new[] { AcaoJogo.Interagir, AcaoJogo.Inventario, AcaoJogo.TrocarItem, AcaoJogo.Atacar, AcaoJogo.Fechar };
+}
 
     static AcaoJogo[] AcoesControle()
     {
@@ -258,6 +277,7 @@ public static class MenuUI
         if (Raylib.IsKeyPressed(KeyboardKey.Escape))
         {
             capturandoTecla = null;
+            avisoConfig = "";
             return;
         }
 
@@ -265,9 +285,15 @@ public static class MenuUI
 
         if (tecla != 0)
         {
-            ConfiguracoesJogo.Teclado[capturandoTecla.Value] = (KeyboardKey)tecla;
-            ConfiguracoesJogo.Salva();
-            capturandoTecla = null;
+            // Evita tecla repetida entre acoes / jogadores e teclas de movimento.
+            if (ConfiguracoesJogo.TentaDefinirTecla(
+                    jogadorCapturando, capturandoTecla!.Value, (KeyboardKey)tecla, out string aviso))
+            {
+                ConfiguracoesJogo.Salva();
+                capturandoTecla = null;
+            }
+
+            avisoConfig = aviso;
         }
     }
 
@@ -276,19 +302,25 @@ public static class MenuUI
         if (Raylib.IsKeyPressed(KeyboardKey.Escape))
         {
             capturandoBotao = null;
+            avisoConfig = "";
             return;
         }
 
-        if (!Raylib.IsGamepadAvailable(0))
+        if (!Raylib.IsGamepadAvailable(jogadorCapturando))
+        {
+            avisoConfig = $"Controle {jogadorCapturando + 1} nao esta conectado.";
             return;
+        }
 
         foreach (var botao in BotoesCapturaveis)
         {
-            if (Raylib.IsGamepadButtonPressed(0, botao))
+            if (Raylib.IsGamepadButtonPressed(jogadorCapturando, botao))
             {
-                ConfiguracoesJogo.Controle[capturandoBotao.Value] = botao;
+                ConfiguracoesJogo.TentaDefinirBotao(
+                    jogadorCapturando, capturandoBotao!.Value, botao, out string aviso);
                 ConfiguracoesJogo.Salva();
                 capturandoBotao = null;
+                avisoConfig = aviso;
                 return;
             }
         }
@@ -304,10 +336,26 @@ public static class MenuUI
             linhas.Add($"Volume Efeitos: {(int)(ConfiguracoesJogo.VolumeEfeitos * 100)}%");
             linhas.Add("Voltar");
         }
-        else if (aba == AbaConfig.Teclado)
+        else if (aba == AbaConfig.Teclado1)
         {
             foreach (var acao in AcoesTeclado())
-                linhas.Add($"{NomeAcao(acao)}: [{ConfiguracoesJogo.Teclado[acao]}]");
+                linhas.Add($"{NomeAcao(acao)}: [{ConfiguracoesJogo.Teclado1[acao]}]");
+
+            linhas.Add("Restaurar padrão");
+            linhas.Add("Voltar");
+        }
+        else if (aba == AbaConfig.Teclado2)
+        {
+            foreach (var acao in AcoesTeclado())
+                linhas.Add($"{NomeAcao(acao)}: [{ConfiguracoesJogo.Teclado2[acao]}]");
+
+            linhas.Add("Restaurar padrão");
+            linhas.Add("Voltar");
+        }
+        else if (aba == AbaConfig.Controle1)
+        {
+            foreach (var acao in AcoesControle())
+                linhas.Add($"{NomeAcao(acao)}: [{ConfiguracoesJogo.Controle1[acao]}]");
 
             linhas.Add("Restaurar padrão");
             linhas.Add("Voltar");
@@ -315,7 +363,7 @@ public static class MenuUI
         else
         {
             foreach (var acao in AcoesControle())
-                linhas.Add($"{NomeAcao(acao)}: [{ConfiguracoesJogo.Controle[acao]}]");
+                linhas.Add($"{NomeAcao(acao)}: [{ConfiguracoesJogo.Controle2[acao]}]");
 
             linhas.Add("Restaurar padrão");
             linhas.Add("Voltar");
@@ -327,8 +375,10 @@ public static class MenuUI
     static string NomeAba(AbaConfig a) => a switch
     {
         AbaConfig.Audio => "Áudio",
-        AbaConfig.Teclado => "Teclado",
-        AbaConfig.Controle => "Controle",
+        AbaConfig.Teclado1 => "Teclado 1",
+        AbaConfig.Teclado2 => "Teclado 2",
+        AbaConfig.Controle1 => "Controle 1",
+        AbaConfig.Controle2 => "Controle 2",
         _ => a.ToString()
     };
 
@@ -369,7 +419,7 @@ public static class MenuUI
 
     static void DesenhaSlots()
     {
-        DesenhaTitulo(modoContinuar ? "Continuar" : "Novo Jogo");
+        DesenhaTitulo(modoContinuar ? "Continuar" : (CoopAtivo ? "Novo Jogo (Coop)" : "Novo Jogo"));
 
         int y = 200;
         for (int i = 0; i < SaveSystem.MaxSlots; i++)
@@ -378,7 +428,7 @@ public static class MenuUI
             Color cor = ativo ? Color.Yellow : Color.White;
 
             string texto = slots[i] != null
-                ? $"Slot {i + 1} - Nível {slots[i].Nivel}, Dia {slots[i].Dia}"
+                ? $"Slot {i + 1} - Nível {slots[i].Nivel}, Dia {slots[i].Dia}{(slots[i].Coop ? " (Coop)" : "")}"
                 : $"Slot {i + 1} - Vazio";
 
             DesenhaLinhaCentralizada(texto, y, 26, cor);
@@ -403,12 +453,20 @@ public static class MenuUI
             y += 40;
         }
 
+        if (avisoConfig.Length > 0)
+        {
+            int tamAviso = 20;
+            int larguraAviso = Raylib.MeasureText(avisoConfig, tamAviso);
+            Raylib.DrawText(avisoConfig, (Program.LarguraTela - larguraAviso) / 2,
+                            Program.AlturaTela - 72, tamAviso, Color.Orange);
+        }
+
         if (capturandoTecla.HasValue)
             DesenhaRodape($"Pressione uma tecla para \"{NomeAcao(capturandoTecla.Value)}\" (Esc cancela)");
         else if (capturandoBotao.HasValue)
             DesenhaRodape($"Pressione um botão do controle para \"{NomeAcao(capturandoBotao.Value)}\" (Esc cancela)");
         else
-            DesenhaRodape("Setas: navegar   Esq/Dir: ajustar   Enter: selecionar   Esc: voltar");
+            DesenhaRodape("Setas: navegar   Esq/Dir: trocar aba   Enter: selecionar   Esc: voltar");
     }
 
     static void DesenhaTitulo(string texto)

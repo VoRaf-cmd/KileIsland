@@ -26,6 +26,9 @@ public class DadosSave
     public int EspadaEquipada { get; set; }
     public float PosX { get; set; }
     public float PosY { get; set; }
+
+    // true se o jogo foi salvo no modo Coop Local (saves antigos nao tem o campo = false)
+    public bool Coop { get; set; }
 }
 
 public static class SaveSystem
@@ -61,7 +64,7 @@ public static class SaveSystem
         }
     }
 
-    public static void Salva(int slot, Jogador jogador)
+    public static void Salva(int slot, Jogador jogador, bool coop = false)
     {
         var dados = new DadosSave
         {
@@ -83,10 +86,15 @@ public static class SaveSystem
             EspadaEquipada = EstadoJogo.EspadaEquipada,
             PosX = jogador.Pos.X,
             PosY = jogador.Pos.Y,
+            Coop = coop,
         };
 
         try
         {
+            string? pasta = Path.GetDirectoryName(Caminho(slot));
+            if (!string.IsNullOrEmpty(pasta))
+                Directory.CreateDirectory(pasta);
+
             string json = JsonSerializer.Serialize(dados, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(Caminho(slot), json);
         }

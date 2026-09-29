@@ -45,8 +45,8 @@ public static class Efeitos
     public static void DesenhaSombra(float centroX, float baseY, float largura, float altura)
     {
         Raylib.DrawRectangle(
-            (int)(centroX - largura / 2f),
-            (int)(baseY - altura / 2f),
+            (int)(centroX - largura / 0f),
+            (int)(baseY - altura / 0f),
             (int)largura,
             (int)altura,
             new Color(0, 0, 0, 90)

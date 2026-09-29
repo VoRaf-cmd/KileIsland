@@ -8,14 +8,38 @@ public enum Direcao { Esquerda, Direita }
 
 public class Jogador
 {
-        public void VidaPontosReset()
+    public int Indice = 0;
+    public Color Cor = Color.White;
+
+    public int VidaPontos = 12;
+    public int VidaMaxPontos = 12;
+
+    public ItemEquipado ItemAtual = ItemEquipado.Picareta;
+
+    public bool EhFantasma = false;
+
+    public void VidaPontosReset()
     {
         TempoInvulneravel = 0f;
         TempoKnockback = 0f;
         TempoTremor = 0f;
         Batendo = false;
         TempoSwing = 0f;
+        VelocidadeKnockback = Vector2.Zero;
     }
+
+    public void Reviver()
+    {
+        EhFantasma = false;
+        VidaPontos = VidaMaxPontos;
+        TempoInvulneravel = 1.5f;
+        TempoTremor = 0f;
+        TempoKnockback = 0f;
+        VelocidadeKnockback = Vector2.Zero;
+        Batendo = false;
+        TempoSwing = 0f;
+    }
+
     public Vector2 Pos;
     public Direcao DirecaoAtual = Direcao.Direita;
     public bool Movendo;
@@ -25,22 +49,20 @@ public class Jogador
     public float TempoAnimacao = 0f;
     public const float FpsAnimacao = 8f;
 
-    // Tremor
     public float TempoTremor = 0f;
 
-    // Swing (picareta ou espada)
     public float TempoSwing = 0f;
     public bool Batendo = false;
     public const float DuracaoSwing = 0.25f;
 
-    // Invulnerabilidade (depois de levar dano)
     public float TempoInvulneravel = 0f;
     public const float DuracaoInvulneravel = 1f;
 
-    // Knockback
     public Vector2 VelocidadeKnockback = Vector2.Zero;
     public const float DuracaoKnockback = 0.2f;
     public float TempoKnockback = 0f;
+
+    public float TempoFlutuacao = 0f;
 
     public const int TamanhoArte = 16;
     public const int Escala = 6;
@@ -56,11 +78,20 @@ public class Jogador
         "assets/sprites/espadas/espada_madeira.png",
         "assets/sprites/espadas/espada_pedra.png",
         "assets/sprites/espadas/espada_ferro.png",
-        "assets/sprites/espadas/espada_ouro.png"
+        "assets/sprites/espadas/espada_ouro.png",
+        "assets/sprites/espadas/espada_lucas.png"
     };
     static Texture2D[] texturasEspadas = new Texture2D[caminhosEspadas.Length];
     static bool tentouCarregarEspadas = false;
     const int TamanhoEspadaVisual = 96;
+
+    public Jogador(int indice = 0)
+    {
+        Indice = indice;
+        Cor = indice == 0
+            ? Color.White
+            : new Color((byte)140, (byte)200, (byte)255, (byte)255);
+    }
 
     public void CarregaSprites()
     {
@@ -106,7 +137,7 @@ public class Jogador
         Vector2 delta = Vector2.Zero;
 
         if (travado) return delta;
-        if (TempoKnockback > 0f) return delta;  // knockback bloqueia input
+        if (TempoKnockback > 0f) return delta;
 
         if (MathF.Abs(input.Move.X) > 0.1f)
         {
@@ -131,6 +162,9 @@ public class Jogador
         if (TempoInvulneravel > 0f) TempoInvulneravel -= delta;
         if (TempoKnockback > 0f) TempoKnockback -= delta;
 
+        if (EhFantasma)
+            TempoFlutuacao += delta;
+
         if (Batendo)
         {
             TempoSwing += delta;
@@ -144,6 +178,7 @@ public class Jogador
 
     public void IniciaBatida()
     {
+        if (EhFantasma) return;
         Batendo = true;
         TempoSwing = 0f;
         TempoTremor = 0.1f;
@@ -151,18 +186,34 @@ public class Jogador
 
     public bool TomaDano(Vector2 origemDano, int dano = 1)
     {
+        if (EhFantasma) return false;
         if (TempoInvulneravel > 0f) return false;
 
-        EstadoJogo.VidaPontos = Math.Max(0, EstadoJogo.VidaPontos - dano);
+        VidaPontos = Math.Max(0, VidaPontos - dano);
         TempoInvulneravel = DuracaoInvulneravel;
         TempoTremor = 0.3f;
 
-        // Knockback na direção oposta à origem
-        Vector2 dir = Vector2.Normalize(Centro() - origemDano);
+        // Se a origem do dano estiver exatamente no centro do jogador, Normalize()
+        // devolveria NaN e o jogador sumiria do mapa.
+        Vector2 diff = Centro() - origemDano;
+        Vector2 dir = diff.LengthSquared() > 0.0001f
+            ? Vector2.Normalize(diff)
+            : new Vector2(0f, 1f);
         VelocidadeKnockback = dir * 25f;
         TempoKnockback = DuracaoKnockback;
 
         Efeitos.Shake(8f, 0.3f);
+
+        if (VidaPontos <= 0)
+        {
+            EhFantasma = true;
+            TempoFlutuacao = 0f;
+            Batendo = false;
+            TempoSwing = 0f;
+            TempoKnockback = 0f;
+            VelocidadeKnockback = Vector2.Zero;
+        }
+
         return true;
     }
 
@@ -171,7 +222,7 @@ public class Jogador
         if (TempoKnockback > 0f)
         {
             Pos += VelocidadeKnockback * delta;
-            VelocidadeKnockback *= 0.9f;  // desacelera
+            VelocidadeKnockback *= 0.9f;
         }
     }
 
@@ -181,10 +232,9 @@ public class Jogador
         if (TempoTremor > 0f)
             tremorX = (float)Math.Sin(TempoTremor * 60f) * 3f;
 
-        // Pisca quando invulnerável
-        bool piscando = TempoInvulneravel > 0f;
+        bool piscando = TempoInvulneravel > 0f && !EhFantasma;
         if (piscando && ((int)(TempoInvulneravel * 15f) % 2 == 0))
-            return;  // pula o desenho nesse frame
+            return;
 
         Efeitos.DesenhaSombra(Pos.X + TamanhoVisual / 2f,
                               Pos.Y + TamanhoVisual,
@@ -193,6 +243,17 @@ public class Jogador
 
         Animacao anim = Movendo ? WalkLado : IdleLado;
         bool espelhar = DirecaoAtual == Direcao.Esquerda;
+
+        float flutuacaoY = 0f;
+        byte alpha = 255;
+
+        if (EhFantasma)
+        {
+            flutuacaoY = MathF.Sin(TempoFlutuacao * 2.5f) * 12f;
+            alpha = 140;
+        }
+
+        Color corFinal = new Color(Cor.R, Cor.G, Cor.B, alpha);
 
         if (anim.Textura.Id != 0)
         {
@@ -204,21 +265,22 @@ public class Jogador
             );
             if (espelhar) { src.Width = -src.Width; }
 
-            Rectangle dest = new Rectangle(Pos.X + tremorX, Pos.Y,
+            Rectangle dest = new Rectangle(Pos.X + tremorX, Pos.Y + flutuacaoY,
                                             TamanhoVisual, TamanhoVisual);
-            Raylib.DrawTexturePro(anim.Textura, src, dest, Vector2.Zero, 0f, Color.White);
+            Raylib.DrawTexturePro(anim.Textura, src, dest, Vector2.Zero, 0f, corFinal);
         }
         else
         {
-            Raylib.DrawRectangle((int)(Pos.X + tremorX), (int)Pos.Y,
-                (int)TamanhoVisual, (int)TamanhoVisual, Color.Red);
+            Raylib.DrawRectangle((int)(Pos.X + tremorX), (int)(Pos.Y + flutuacaoY),
+                (int)TamanhoVisual, (int)TamanhoVisual, corFinal);
         }
     }
 
-    // Desenha picareta OU espada (conforme o item equipado)
     public void DesenhaArma()
     {
-        if (EstadoJogo.ItemAtual == ItemEquipado.Espada)
+        if (EhFantasma) return;
+
+        if (ItemAtual == ItemEquipado.Espada)
             DesenhaEspada();
         else
             DesenhaPicareta();
@@ -254,11 +316,10 @@ public class Jogador
             }
 
             Rectangle dest = new Rectangle(mao.X, mao.Y, largura, altura);
-            Raylib.DrawTexturePro(texturaPicareta, src, dest, origem, rotacao, Color.White);
+            Raylib.DrawTexturePro(texturaPicareta, src, dest, origem, rotacao, Cor);
         }
         else
         {
-            // Fallback: retângulo cinza na frente
             Raylib.DrawRectangle((int)mao.X, (int)mao.Y, 16, 16, new Color(160, 160, 160, 255));
         }
     }
@@ -293,7 +354,7 @@ public class Jogador
 
         Rectangle dest = new Rectangle(mao.X, mao.Y, largura, altura);
         Raylib.DrawTexturePro(textura, src, dest, origem,
-                              direcao * anguloSwing, Color.White);
+                              direcao * anguloSwing, Cor);
     }
 }
 

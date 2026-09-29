@@ -9,7 +9,7 @@ public static class InventarioUI
 
     public static void ResetarSelecao() { botaoSelecionado = 0; }
 
-    public static void Desenha(InputState input, bool podeInteragir)
+    public static void Desenha(InputState[] inputs, bool podeInteragir)
     {
         int painelLargura = 480;
         int painelAltura = 460;
@@ -30,20 +30,26 @@ public static class InventarioUI
 
         int totalBotoes = EstadoJogo.Espadas.Count + 1;
 
+        // Combina input dos 2 jogadores
+        bool menuDown = inputs[0].MenuDown || inputs[1].MenuDown;
+        bool menuUp = inputs[0].MenuUp || inputs[1].MenuUp;
+        bool menuCancel = inputs[0].MenuCancel || inputs[1].MenuCancel;
+        bool menuConfirm = inputs[0].MenuConfirm || inputs[1].MenuConfirm;
+
         if (podeInteragir)
         {
-            if (input.MenuDown)
+            if (menuDown)
             {
                 botaoSelecionado = (botaoSelecionado + 1) % totalBotoes;
                 AudioManager.TocaSelecaoMenu();
             }
-            if (input.MenuUp)
+            if (menuUp)
             {
                 botaoSelecionado--;
                 if (botaoSelecionado < 0) botaoSelecionado = totalBotoes - 1;
                 AudioManager.TocaSelecaoMenu();
             }
-            if (input.MenuCancel)
+            if (menuCancel)
             {
                 AudioManager.TocaCliqueMenu();
                 Program.InventarioAberto = false;
@@ -51,15 +57,14 @@ public static class InventarioUI
             }
         }
 
-        bool confirmar = podeInteragir && input.MenuConfirm;
+        bool confirmar = podeInteragir && menuConfirm;
 
         int y = painelY + 60;
         int x = painelX + 20;
         int idx = 0;
 
-        string itemAtual = EstadoJogo.ItemAtual == ItemEquipado.Espada ? "Espada" : "Picareta";
-        Raylib.DrawText($"Item equipado: {itemAtual}", x, y, 20, Color.White);
-        y += 35;
+        Raylib.DrawText($"Nivel {EstadoJogo.Nivel}   XP {EstadoJogo.Xp}", x, y, 18, Color.White);
+        y += 30;
 
         Raylib.DrawText("Espadas:", x, y, 20, new Color(200, 200, 200, 255));
         y += 28;

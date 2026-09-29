@@ -11,7 +11,7 @@ public static class Program
     public const int LarguraTela = 1024;
     public const int AlturaTela = 576;
 
-    public const float DistanciaInteracao = 300f;
+    public const float DistanciaInteracao = 400f;
     public const float DistanciaMinerar = 150f;
     public const float DistanciaAtaque = 150f;
     public const float EspacamentoMinerio = 400f;
@@ -29,7 +29,8 @@ public static class Program
     public static bool InventarioAberto = false;
     public static float TempoDesdeAbrirMenu = 0f;
 
-    // Pra ordenação por Y: cada "coisa desenhável" tem base Y (o pé) e uma Action pra se desenhar.
+    public static Jogador[]? jogadoresGlobais = null;
+
     struct CoisaDesenhavel
     {
         public float BaseY;
@@ -41,6 +42,11 @@ public static class Program
     {
         Raylib.InitWindow(LarguraTela, AlturaTela, "KileIsland");
         Raylib.SetTargetFPS(60);
+
+        // Esc e a tecla "Fechar/Voltar" dos menus (P1 e P2). Por padrao o Raylib fecha a
+        // janela ao apertar Esc, o que encerrava o jogo ao tentar fechar a forja/inventario.
+        // O jogo continua fechando pelo X da janela e pela opcao "Sair" do menu.
+        Raylib.SetExitKey(KeyboardKey.Null);
 
         ConfiguracoesJogo.Carrega();
         AudioManager.Inicia();
@@ -67,7 +73,7 @@ public static class Program
 
         while (!Raylib.WindowShouldClose() && !MenuUI.JogoDeveIniciar)
         {
-            InputState menuInput = Input.Read();
+            InputState menuInput = Input.Read(0);
             AudioManager.AtualizaMusica();
             MenuUI.Atualiza(menuInput);
 
@@ -84,8 +90,17 @@ public static class Program
         }
 
         // ================= SETUP DO JOGO =================
-        Jogador jogador = new Jogador();
-        jogador.CarregaSprites();
+        int qtdJogadores = MenuUI.CoopAtivo ? 2 : 1;
+        Console.WriteLine($"[COOP] CoopAtivo={MenuUI.CoopAtivo} | qtdJogadores={qtdJogadores}");
+        Jogador[] jogadores = new Jogador[qtdJogadores];
+        for (int i = 0; i < qtdJogadores; i++)
+            jogadores[i] = new Jogador(i);
+
+        jogadoresGlobais = jogadores;
+
+        foreach (var j in jogadores)
+            j.CarregaSprites();
+
         Jogador.CarregaPicareta();
         Jogador.CarregaEspadas();
         HUD.Carrega();
@@ -95,14 +110,16 @@ public static class Program
         Jerisvaldo.CarregaSpriteMarcaX();
 
         Vector2 posInicial = new Vector2(
-            CenaMundo.LarguraMapa / 2f - jogador.TamanhoVisual / 2f,
-            CenaMundo.AlturaMapa / 2f - jogador.TamanhoVisual / 2f
+            CenaMundo.LarguraMapa / 2f - jogadores[0].TamanhoVisual / 2f,
+            CenaMundo.AlturaMapa / 2f - jogadores[0].TamanhoVisual / 2f
         );
-        jogador.Pos = posInicial;
+
+        jogadores[0].Pos = posInicial;
+        if (jogadores.Length > 1)
+            jogadores[1].Pos = posInicial + new Vector2(120f, 0f);
 
         List<ObjetoMapa> objetos = new List<ObjetoMapa>();
 
-        // A colisão ocupa a base para permitir que o Kile passe por trás.
         ObjetoMapa casa = ObjetoMapa.Cria("assets/sprites/casa.png",
             new Vector2(180, 180), 384, 384, true,
             new Color(140, 90, 50, 255), "CASA",
@@ -133,19 +150,23 @@ public static class Program
         Random rng = new Random();
         float tempoSpawn = 0f;
         float tempoSpawnZumbi = 0f;
-        float tempoCooldownPicareta = 0f;
+        float[] tempoCooldownPicareta = new float[2] { 0f, 0f };
         bool zumbisInvocadosNesteCiclo = false;
+        bool pausado = false;
+        bool sairDoJogo = false;
 
         for (int i = 0; i < 10; i++)
             TentaSpawnarMinerio(minerios, rng, objetos);
 
-        // Se veio de "Continuar" com um save existente, aplica o progresso salvo por cima do estado inicial.
         if (MenuUI.SlotAtual >= 0 && !MenuUI.NovoJogo)
         {
             DadosSave dados = SaveSystem.Carrega(MenuUI.SlotAtual);
             if (dados != null)
             {
-                SaveSystem.Aplica(dados, jogador);
+                SaveSystem.Aplica(dados, jogadores[0]);
+
+                if (jogadores.Length > 1)
+                    jogadores[1].Pos = new Vector2(dados.PosX + 120f, dados.PosY);
 
                 if (EstadoJogo.EhDia)
                     CicloDiaNoite.ForcaDia();
@@ -158,7 +179,7 @@ public static class Program
         camera.Offset = new Vector2(LarguraTela / 2f, AlturaTela / 2f);
         camera.Zoom = 0.75f;
         camera.Rotation = 0f;
-        camera.Target = jogador.Centro();
+        camera.Target = CentroDosJogadores(jogadores);
         EventoTelefone eventoTelefone = new EventoTelefone();
         Jerisvaldo jerisvaldo = null;
 
@@ -168,8 +189,50 @@ public static class Program
         while (!Raylib.WindowShouldClose())
         {
             float delta = Raylib.GetFrameTime();
-            tempoCooldownPicareta = Math.Max(0f, tempoCooldownPicareta - delta);
-            InputState input = Input.Read();
+            for (int ci = 0; ci < 2; ci++)
+                tempoCooldownPicareta[ci] = Math.Max(0f, tempoCooldownPicareta[ci] - delta);
+
+            InputState[] inputs = new InputState[2];
+            inputs[0] = Input.Read(0);
+            inputs[1] = jogadores.Length > 1 ? Input.Read(1) : inputs[0];
+
+            // ===== Pausa =====
+            // Enquanto pausado, delta = 0 e os inputs de jogo sao zerados: nada anda, nenhum
+            // timer avanca e a cena continua sendo desenhada (fica como fundo do menu).
+            bool startPressionado = false;
+            for (int gi = 0; gi < 2; gi++)
+                if (Raylib.IsGamepadAvailable(gi) &&
+                    Raylib.IsGamepadButtonPressed(gi, GamepadButton.MiddleRight))
+                    startPressionado = true;
+
+            bool estavaPausado = pausado;
+            if (pausado)
+            {
+                InputState menuPausa = CombinaMenu(inputs[0], inputs[1]);
+                AcaoPausa acaoPausa = PauseUI.Atualiza(menuPausa);
+                if (acaoPausa == AcaoPausa.Nada && startPressionado)
+                    acaoPausa = AcaoPausa.Continuar;
+
+                if (acaoPausa == AcaoPausa.Continuar) pausado = false;
+                else if (acaoPausa == AcaoPausa.Sair) sairDoJogo = true;
+                else if (acaoPausa == AcaoPausa.Salvar)
+                {
+                    if (MenuUI.SlotAtual >= 0)
+                    {
+                        SaveSystem.Salva(MenuUI.SlotAtual, jogadores[0], jogadores.Length > 1);
+                        PauseUI.MostraMensagem("Jogo salvo!");
+                    }
+                    else PauseUI.MostraMensagem("Nenhum slot de save selecionado.");
+                }
+
+                delta = 0f;
+                inputs = new InputState[2];
+            }
+
+            if (sairDoJogo) break;
+
+            InputState input = inputs[0];
+
             AudioManager.AtualizaMusica();
 
             int diaAntesDeDormir = EstadoJogo.Dia;
@@ -184,7 +247,16 @@ public static class Program
                 eventoTelefone.Inicia(camera.Target, camera.Zoom);
             }
 
-            eventoTelefone.Atualiza(delta, input, jogador.Centro(), ref camera);
+            // Telefone: quem atende e o jogador vivo que apertou "Interagir" perto dele
+            // (ou o mais proximo). Nos dialogos qualquer um avanca a fala. A camera
+            // volta para o meio dos dois jogadores.
+            int idEvento = JogadorDoEvento(jogadores, inputs, eventoTelefone);
+            InputState inputEvento = inputs[idEvento];
+            if (jogadores.Length > 1 && eventoTelefone.Fase == FaseEventoTelefone.Dialogo)
+                inputEvento.InteractPressed = inputs[0].InteractPressed || inputs[1].InteractPressed;
+
+            eventoTelefone.Atualiza(delta, inputEvento, jogadores[idEvento].Centro(),
+                                    ref camera, CentroDosJogadores(jogadores));
             if (eventoTelefone.ConsomePedidoInicioBatalha())
             {
                 CenaMundo.AmpliaIlha(1.25f);
@@ -206,17 +278,44 @@ public static class Program
                            eventoTelefone.BloqueiaJogador;
             LevelUpAviso.Atualiza(delta);
 
+            // Esc ou Start abre a pausa (Esc fecha forja/inventario quando eles estao abertos,
+            // entao nesse caso nao pausa).
+            if (!estavaPausado && !pausado && !menuAberto && !dormindo && !GameOverUI.Ativo &&
+                (Raylib.IsKeyPressed(KeyboardKey.Escape) || startPressionado))
+            {
+                pausado = true;
+                PauseUI.Abre();
+            }
+
+            // Debug P2 (F2)
+            if (Raylib.IsKeyPressed(KeyboardKey.F2) && jogadores.Length > 1)
+            {
+                Vector2 c2 = jogadores[1].Centro();
+                Console.WriteLine($"[DEBUG P2] Interact={inputs[1].InteractPressed} Inv={inputs[1].InventoryPressed} Swap={inputs[1].SwapItemPressed}");
+                Console.WriteLine($"[DEBUG P2] Centro={c2} | Casa={casa.Centro()} Dist={Vector2.Distance(c2, casa.Centro()):F0}");
+                Console.WriteLine($"[DEBUG P2] Forja={forja.Centro()} Dist={Vector2.Distance(c2, forja.Centro()):F0}");
+                Console.WriteLine($"[DEBUG P2] ForjaAberta={ForjaAberta} InvAberto={InventarioAberto} Travado={travado}");
+            }
+
             if (GameOverUI.Ativo)
             {
-                if (Raylib.IsKeyPressed(KeyboardKey.R) ||
-                    (Raylib.IsGamepadAvailable(0) &&
-                     Raylib.IsGamepadButtonPressed(0, GamepadButton.RightFaceDown)))
+                if (Raylib.IsKeyPressed(KeyboardKey.R) || AlgumControleConfirmou())
                 {
                     AudioManager.TocaCliqueMenu();
                     CenaMundo.RestauraDimensoes();
                     EstadoJogo.Resetar();
-                    jogador.Pos = posInicial;
-                    jogador.VidaPontosReset();
+                    jogadores[0].Pos = posInicial;
+                    if (jogadores.Length > 1)
+                        jogadores[1].Pos = posInicial + new Vector2(120f, 0f);
+
+                    foreach (var j in jogadores)
+                    {
+                        j.VidaPontos = j.VidaMaxPontos;
+                        j.EhFantasma = false;
+                        j.ItemAtual = ItemEquipado.Picareta;
+                        j.VidaPontosReset();
+                    }
+
                     ForjaAberta = false;
                     InventarioAberto = false;
                     OverlaySono.Estado = EstadoSono.Acordado;
@@ -240,100 +339,145 @@ public static class Program
                     CicloDiaNoite.ForcaDia();
                     eventoTelefone = new EventoTelefone();
                     jerisvaldo = null;
-                    camera.Target = jogador.Centro();
+                    camera.Target = CentroDosJogadores(jogadores);
                     camera.Zoom = 0.75f;
                     AudioManager.TocaMusica(MusicaDoDia);
                     GameOverUI.Ativo = false;
                     tempoSpawnZumbi = 0f;
                     tempoSpawn = 0f;
-                    tempoCooldownPicareta = 0f;
+                    tempoCooldownPicareta[0] = 0f;
+                    tempoCooldownPicareta[1] = 0f;
                 }
             }
 
             if (menuAberto) TempoDesdeAbrirMenu += delta;
             else TempoDesdeAbrirMenu = 0f;
 
-            Vector2 inputDelta = jogador.LeInput(input, travado);
-            float tv = jogador.TamanhoVisual;
-
-            Vector2 tentativaX = new Vector2(jogador.Pos.X + inputDelta.X, jogador.Pos.Y);
-            if (!Colide(tentativaX, tv, objetos))
-                jogador.Pos = new Vector2(tentativaX.X, jogador.Pos.Y);
-
-            Vector2 tentativaY = new Vector2(jogador.Pos.X, jogador.Pos.Y + inputDelta.Y);
-            if (!Colide(tentativaY, tv, objetos))
-                jogador.Pos = new Vector2(jogador.Pos.X, tentativaY.Y);
-
-            jogador.AplicaKnockback(delta);
-
-            jogador.Pos = new Vector2(
-                Math.Clamp(jogador.Pos.X, CenaMundo.PosIlha.X,
-                    CenaMundo.PosIlha.X + CenaMundo.GramaLargura - tv),
-                Math.Clamp(jogador.Pos.Y, CenaMundo.PosIlha.Y,
-                    CenaMundo.PosIlha.Y + CenaMundo.GramaAltura - tv)
-            );
-
-            Vector2 centroKile = jogador.Centro();
-            bool pertoDaCasa  = Vector2.Distance(centroKile, casa.Centro())  < DistanciaInteracao;
-            bool pertoDaForja = Vector2.Distance(centroKile, forja.Centro()) < DistanciaInteracao;
-
-            if (!travado && !eventoTelefone.Ativo && input.InteractPressed)
+            // ===== Movimento dos jogadores =====
+            for (int ji = 0; ji < jogadores.Length; ji++)
             {
-                if (pertoDaForja)
+                var j = jogadores[ji];
+                Vector2 inputDelta = j.LeInput(inputs[ji], travado);
+                float tv = j.TamanhoVisual;
+
+                Vector2 tentativaX = new Vector2(j.Pos.X + inputDelta.X, j.Pos.Y);
+                if (!Colide(tentativaX, tv, objetos))
+                    j.Pos = new Vector2(tentativaX.X, j.Pos.Y);
+
+                Vector2 tentativaY = new Vector2(j.Pos.X, j.Pos.Y + inputDelta.Y);
+                if (!Colide(tentativaY, tv, objetos))
+                    j.Pos = new Vector2(j.Pos.X, tentativaY.Y);
+
+                j.AplicaKnockback(delta);
+
+                j.Pos = new Vector2(
+                    Math.Clamp(j.Pos.X, CenaMundo.PosIlha.X,
+                        CenaMundo.PosIlha.X + CenaMundo.GramaLargura - tv),
+                    Math.Clamp(j.Pos.Y, CenaMundo.PosIlha.Y,
+                        CenaMundo.PosIlha.Y + CenaMundo.GramaAltura - tv)
+                );
+            }
+
+            // ===== Interacao (qualquer um dos dois pode abrir) =====
+            for (int ji = 0; ji < jogadores.Length; ji++)
+            {
+                if (jogadores[ji].EhFantasma) continue;
+
+                Vector2 centroJ = jogadores[ji].Centro();
+                bool pertoCasa  = Vector2.Distance(centroJ, casa.Centro())  < DistanciaInteracao;
+                bool pertoForja = Vector2.Distance(centroJ, forja.Centro()) < DistanciaInteracao;
+
+                if (!travado && !eventoTelefone.Ativo && inputs[ji].InteractPressed)
                 {
-                    ForjaAberta = true;
-                    ForjaUI.ResetarSelecao();
-                    TempoDesdeAbrirMenu = 0f;
-                }
-                else if (pertoDaCasa)
-                {
-                    OverlaySono.Inicia();
-                    Efeitos.Shake(2f, 0.3f);
+                    if (pertoForja)
+                    {
+                        ForjaAberta = true;
+                        ForjaUI.ResetarSelecao();
+                        TempoDesdeAbrirMenu = 0f;
+                        break;
+                    }
+                    else if (pertoCasa)
+                    {
+                        OverlaySono.Inicia();
+                        Efeitos.Shake(2f, 0.3f);
+                        break;
+                    }
                 }
             }
 
-            if (input.InventoryPressed && !dormindo && !ForjaAberta &&
+            // Inventario: qualquer um abre
+            if (!dormindo && !ForjaAberta &&
                 !GameOverUI.Ativo && !eventoTelefone.BloqueiaJogador)
             {
-                if (InventarioAberto) InventarioAberto = false;
-                else
+                bool algumAbriuInv = inputs[0].InventoryPressed ||
+                                     (jogadores.Length > 1 && inputs[1].InventoryPressed);
+
+                if (algumAbriuInv)
                 {
-                    InventarioAberto = true;
-                    InventarioUI.ResetarSelecao();
-                    TempoDesdeAbrirMenu = 0f;
+                    if (InventarioAberto) InventarioAberto = false;
+                    else
+                    {
+                        InventarioAberto = true;
+                        InventarioUI.ResetarSelecao();
+                        TempoDesdeAbrirMenu = 0f;
+                    }
                 }
             }
 
-            if (input.SwapItemPressed && !travado)
+            // Trocar item: individual por jogador
+            for (int ji = 0; ji < jogadores.Length; ji++)
             {
-                EstadoJogo.ItemAtual = EstadoJogo.ItemAtual == ItemEquipado.Espada
-                    ? ItemEquipado.Picareta
-                    : ItemEquipado.Espada;
+                if (travado || jogadores[ji].EhFantasma) continue;
+
+                if (inputs[ji].SwapItemPressed)
+                {
+                    jogadores[ji].ItemAtual = jogadores[ji].ItemAtual == ItemEquipado.Espada
+                        ? ItemEquipado.Picareta
+                        : ItemEquipado.Espada;
+                }
             }
 
             bool podeInteragirMenu = TempoDesdeAbrirMenu > 0.2f;
 
-            if (podeInteragirMenu && input.ClosePressed && menuAberto)
+            // Fechar menu: qualquer um fecha
+            if (podeInteragirMenu && menuAberto)
             {
-                ForjaAberta = false;
-                InventarioAberto = false;
+                bool algumFechou = inputs[0].ClosePressed ||
+                                   (jogadores.Length > 1 && inputs[1].ClosePressed);
+                if (algumFechou)
+                {
+                    ForjaAberta = false;
+                    InventarioAberto = false;
+                }
             }
 
-            if (!travado && !jogador.Batendo
-                && (input.MouseClickPressed || input.AttackPressed)
-                && (EstadoJogo.ItemAtual != ItemEquipado.Picareta || tempoCooldownPicareta <= 0f))
+            // ===== Ataque (os 2 podem atacar) =====
+            for (int ji = 0; ji < jogadores.Length; ji++)
             {
-                if (EstadoJogo.ItemAtual == ItemEquipado.Picareta)
+                var j = jogadores[ji];
+                if (j.EhFantasma) continue;
+
+                InputState inputJ = inputs[ji];
+
+                bool querAtacar = inputJ.MouseClickPressed || inputJ.AttackPressed;
+                if (travado || j.Batendo || !querAtacar) continue;
+
+                bool ehPicareta = j.ItemAtual == ItemEquipado.Picareta;
+                if (ehPicareta && tempoCooldownPicareta[ji] > 0f) continue;
+
+                Vector2 centroJ = j.Centro();
+
+                if (ehPicareta)
                 {
-                    Minerio alvo = MinerioMaisProximo(minerios, centroKile, DistanciaMinerar);
+                    Minerio alvo = MinerioMaisProximo(minerios, centroJ, DistanciaMinerar);
                     if (alvo != null)
                     {
                         TocaVariacao(sonsPicareta, ref ultimaVariacaoPicareta);
-                        tempoCooldownPicareta = 0.6f;
+                        tempoCooldownPicareta[ji] = 0.6f;
                         alvo.PicaretadasRestantes--;
                         alvo.TempoTremor = 0.15f;
                         alvo.IniciaAnimacao();
-                        jogador.IniciaBatida();
+                        j.IniciaBatida();
 
                         if (alvo.PicaretadasRestantes <= 0)
                         {
@@ -353,19 +497,23 @@ public static class Program
                 }
                 else
                 {
-                    jogador.IniciaBatida();
+                    j.IniciaBatida();
                     TocaVariacao(sonsSwooshEspada, ref ultimaVariacaoSwoosh);
+
+                    // Dano base 2 (sem espada) ou dano da espada equipada
+                    int dano = 2;
                     int indiceEspada = EstadoJogo.EspadaEquipada;
-                    int dano = indiceEspada >= 0
-                               && indiceEspada < EstadoJogo.Espadas.Count
-                               && indiceEspada < EstadoJogo.EspadasCompradas.Length
-                               && EstadoJogo.EspadasCompradas[indiceEspada]
-                        ? EstadoJogo.Espadas[indiceEspada].Dano
-                        : 1;
+                    if (indiceEspada >= 0
+                        && indiceEspada < EstadoJogo.Espadas.Count
+                        && indiceEspada < EstadoJogo.EspadasCompradas.Length
+                        && EstadoJogo.EspadasCompradas[indiceEspada])
+                    {
+                        dano = EstadoJogo.Espadas[indiceEspada].Dano;
+                    }
 
                     bool bossNoAlcance = eventoTelefone.BatalhaAtiva &&
                         jerisvaldo != null && jerisvaldo.EstaVivo &&
-                        jerisvaldo.EstaNoAlcance(centroKile, DistanciaAtaque);
+                        jerisvaldo.EstaNoAlcance(centroJ, DistanciaAtaque);
 
                     if (bossNoAlcance && jerisvaldo!.EstaVulneravel)
                     {
@@ -377,7 +525,7 @@ public static class Program
                     }
                     else
                     {
-                        Zumbi alvoZumbi = ZumbiMaisProximo(zumbis, centroKile, DistanciaAtaque);
+                        Zumbi alvoZumbi = ZumbiMaisProximo(zumbis, centroJ, DistanciaAtaque);
                         if (alvoZumbi != null)
                         {
                             TocaVariacao(sonsAcertoEspada, ref ultimaVariacaoAcerto);
@@ -394,10 +542,23 @@ public static class Program
                 }
             }
 
-            Rectangle rectKile = new Rectangle(jogador.Pos.X, jogador.Pos.Y, tv, tv);
+            // ===== Coleta de drops =====
             for (int i = drops.Count - 1; i >= 0; i--)
             {
-                if (Raylib.CheckCollisionRecs(rectKile, drops[i].Retangulo()))
+                bool coletado = false;
+                foreach (var j in jogadores)
+                {
+                    if (j.EhFantasma) continue;
+                    Rectangle rectJ = new Rectangle(j.Pos.X, j.Pos.Y,
+                        j.TamanhoVisual, j.TamanhoVisual);
+                    if (Raylib.CheckCollisionRecs(rectJ, drops[i].Retangulo()))
+                    {
+                        coletado = true;
+                        break;
+                    }
+                }
+
+                if (coletado)
                 {
                     switch (drops[i].Tipo)
                     {
@@ -419,9 +580,8 @@ public static class Program
             {
                 EstadoJogo.NoitesSobrevividas++;
 
-                // Auto-save ao sobreviver uma noite (se veio de um slot de save).
                 if (MenuUI.SlotAtual >= 0)
-                    SaveSystem.Salva(MenuUI.SlotAtual, jogador);
+                    SaveSystem.Salva(MenuUI.SlotAtual, jogadores[0], jogadores.Length > 1);
             }
 
             if (!EstadoJogo.EhDia && !eventoTelefone.ArenaAtiva)
@@ -433,21 +593,24 @@ public static class Program
                 if (tempoSpawnZumbi >= intervalo)
                 {
                     tempoSpawnZumbi = 0f;
-                    Vector2 pos = PosAleatoriaZumbi(rng, jogador.Centro(), navegacaoZumbi);
+                    Vector2 pos = PosAleatoriaZumbi(rng, jogadores, navegacaoZumbi);
 
                     int forcaNoite = EstadoJogo.NoitesSobrevividas;
+                    float fatorNoite = 1f + forcaNoite * 0.75f;
 
                     Zumbi z = new Zumbi();
                     z.Pos = pos;
-                    z.Vida = EstadoJogo.Espadas[0].Dano * (forcaNoite + 1);
-                    z.DanoContato = 1 + forcaNoite / 3;
-                    z.MultiplicadorVelocidade = 1f + Math.Min(forcaNoite * 0.05f, 0.6f);
+                    z.Vida = (int)MathF.Round(5f * fatorNoite);
+                    z.DanoContato = (int)MathF.Round(1f * fatorNoite);
+                    z.MultiplicadorVelocidade = fatorNoite;
                     zumbis.Add(z);
+
+                    Console.WriteLine($"[ZUMBI] Noite {forcaNoite} | Vida {z.Vida} | Dano {z.DanoContato} | Vel {z.MultiplicadorVelocidade:F2}");
                 }
             }
             else tempoSpawnZumbi = 0f;
 
-            jogador.Atualiza(delta);
+            foreach (var j in jogadores) j.Atualiza(delta);
             foreach (var m in minerios) m.Atualiza(delta);
             foreach (var d in drops) d.Atualiza(delta);
             Efeitos.Atualiza(delta);
@@ -457,8 +620,10 @@ public static class Program
             for (int i = zumbis.Count - 1; i >= 0; i--)
             {
                 var z = zumbis[i];
+                Vector2 alvoZ = JogadorVivoMaisProximoDe(jogadores, z.Centro());
+
                 bool queimarAoAmanhecer = EstadoJogo.EhDia && !eventoTelefone.ArenaAtiva;
-                z.Atualiza(delta, jogador.Centro(), velZumbiBase, navegacaoZumbi, queimarAoAmanhecer);
+                z.Atualiza(delta, alvoZ, velZumbiBase, navegacaoZumbi, queimarAoAmanhecer);
 
                 if (z.EstaMorto())
                 {
@@ -468,8 +633,18 @@ public static class Program
 
                 bool podeMachucar = z.Estado == EstadoZumbi.Andando || z.Estado == EstadoZumbi.Parado;
 
-                if (podeMachucar && Raylib.CheckCollisionRecs(jogador.Retangulo(), z.Retangulo()))
-                    jogador.TomaDano(z.Centro(), z.DanoContato);
+                if (podeMachucar)
+                {
+                    foreach (var j in jogadores)
+                    {
+                        if (j.EhFantasma) continue;
+                        if (Raylib.CheckCollisionRecs(j.Retangulo(), z.Retangulo()))
+                        {
+                            j.TomaDano(z.Centro(), z.DanoContato);
+                            break;
+                        }
+                    }
+                }
             }
 
             if (jerisvaldo != null && eventoTelefone.ArenaAtiva)
@@ -480,16 +655,21 @@ public static class Program
                     CenaMundo.GramaLargura,
                     CenaMundo.GramaAltura
                 );
+                Vector2 alvoBoss = JogadorVivoMaisProximoDe(jogadores, jerisvaldo.Centro);
                 float shakeAntes = jerisvaldo.IntensidadeShake;
-                jerisvaldo.Atualiza(delta, jogador.Centro(), limitesIlha);
+                jerisvaldo.Atualiza(delta, alvoBoss, limitesIlha);
 
                 if (jerisvaldo.IntensidadeShake > shakeAntes)
                     Efeitos.Shake(jerisvaldo.IntensidadeShake, 0.45f);
 
-                if (jerisvaldo.ConsomeDanoImpacto() &&
-                    Vector2.Distance(jogador.Centro(), jerisvaldo.PosicaoImpacto) <= jerisvaldo.RaioDanoArea)
+                if (jerisvaldo.ConsomeDanoImpacto())
                 {
-                    jogador.TomaDano(jerisvaldo.PosicaoImpacto, jerisvaldo.DanoImpacto);
+                    foreach (var j in jogadores)
+                    {
+                        if (j.EhFantasma) continue;
+                        if (Vector2.Distance(j.Centro(), jerisvaldo.PosicaoImpacto) <= jerisvaldo.RaioDanoArea)
+                            j.TomaDano(jerisvaldo.PosicaoImpacto, jerisvaldo.DanoImpacto);
+                    }
                 }
 
                 if (jerisvaldo.DeveSpawnarZumbis && !zumbisInvocadosNesteCiclo)
@@ -508,13 +688,20 @@ public static class Program
 
                     zumbisInvocadosNesteCiclo = true;
                 }
-                else if (!jerisvaldo.DeveSpawnarZumbis)
+
+                if (!jerisvaldo.DeveSpawnarZumbis)
                 {
                     zumbisInvocadosNesteCiclo = false;
                 }
             }
 
-            if (EstadoJogo.VidaPontos <= 0 && !GameOverUI.Ativo)
+            bool todosFantasmas = true;
+            foreach (var j in jogadores)
+            {
+                if (!j.EhFantasma) { todosFantasmas = false; break; }
+            }
+
+            if (todosFantasmas && !GameOverUI.Ativo)
             {
                 GameOverUI.Inicia();
                 Efeitos.Shake(15f, 0.6f);
@@ -532,9 +719,11 @@ public static class Program
 
             if (!eventoTelefone.ControlaCamera)
             {
-                Vector2 alvoCamera = jogador.Centro() + Efeitos.OffsetShake();
+                Vector2 alvoCamera = CentroDosJogadores(jogadores) + (pausado ? Vector2.Zero : Efeitos.OffsetShake());
                 camera.Target = Vector2.Lerp(camera.Target, alvoCamera, 0.05f);
-                camera.Zoom += (0.75f - camera.Zoom) * 0.05f;
+
+                float zoomAlvo = CalculaZoomDinamico(jogadores);
+                camera.Zoom += (zoomAlvo - camera.Zoom) * 0.05f;
             }
 
             Raylib.BeginDrawing();
@@ -614,15 +803,19 @@ public static class Program
                 });
             }
 
-            coisas.Add(new CoisaDesenhavel
+            foreach (var j in jogadores)
             {
-                BaseY = jogador.Pos.Y + jogador.TamanhoVisual,
-                Desenha = () =>
+                var jLocal = j;
+                coisas.Add(new CoisaDesenhavel
                 {
-                    jogador.Desenha();
-                    jogador.DesenhaArma();
-                }
-            });
+                    BaseY = jLocal.Pos.Y + jLocal.TamanhoVisual,
+                    Desenha = () =>
+                    {
+                        jLocal.Desenha();
+                        jLocal.DesenhaArma();
+                    }
+                });
+            }
 
             coisas.Sort((a, b) => a.BaseY.CompareTo(b.BaseY));
 
@@ -631,27 +824,103 @@ public static class Program
             Raylib.EndMode2D();
 
             CicloDiaNoite.Desenha();
-            HUD.Desenha();
+            HUD.Desenha(jogadores);
             if (eventoTelefone.BatalhaAtiva && jerisvaldo != null)
                 jerisvaldo.DesenhaInterface();
 
             if (!eventoTelefone.Ativo && !travado && !dormindo)
             {
-                if (pertoDaForja) DesenhaAviso("Pressione E para abrir a forja");
-                else if (pertoDaCasa) DesenhaAviso("Pressione E para dormir");
+                int linhaAviso = 0;
+                for (int ji = 0; ji < jogadores.Length; ji++)
+                {
+                    if (jogadores[ji].EhFantasma) continue;
+
+                    Vector2 centroJ = jogadores[ji].Centro();
+                    bool pertoCasa  = Vector2.Distance(centroJ, casa.Centro())  < DistanciaInteracao;
+                    bool pertoForja = Vector2.Distance(centroJ, forja.Centro()) < DistanciaInteracao;
+
+                    string? acaoAviso = pertoForja ? "abrir a forja" : (pertoCasa ? "dormir" : null);
+                    if (acaoAviso == null) continue;
+
+                    // Mostra a tecla/botao REAL de cada jogador (P2 usa Enter, nao E).
+                    DesenhaAviso($"P{ji + 1}: Pressione {Input.NomeInteragir(ji)} para {acaoAviso}", linhaAviso);
+                    linhaAviso++;
+                }
             }
 
-            if (ForjaAberta) ForjaUI.Desenha(input, podeInteragirMenu);
-            if (InventarioAberto) InventarioUI.Desenha(input, podeInteragirMenu);
+            if (ForjaAberta) ForjaUI.Desenha(inputs, podeInteragirMenu);
+            if (InventarioAberto) InventarioUI.Desenha(inputs, podeInteragirMenu);
 
-            OverlaySono.Desenha();
+            OverlaySono.Desenha(jogadores);
             GameOverUI.Desenha();
-            eventoTelefone.DesenhaInterface(jogador.Centro());
+            eventoTelefone.DesenhaInterface(jogadores[idEvento].Centro(), Input.NomeInteragir(idEvento));
+
+            if (pausado) PauseUI.Desenha();
 
             Raylib.EndDrawing();
         }
 
         Raylib.CloseWindow();
+    }
+
+    // ================= HELPERS (fora do Main) =================
+
+    public static void ReviverTodosAoDormir()
+    {
+        if (jogadoresGlobais == null) return;
+
+        foreach (var j in jogadoresGlobais)
+        {
+            j.VidaPontos = j.VidaMaxPontos;
+            j.EhFantasma = false;
+            j.VidaPontosReset();
+            j.TempoKnockback = 0f;
+            j.VelocidadeKnockback = Vector2.Zero;
+        }
+    }
+
+    static Vector2 CentroDosJogadores(Jogador[] jogadores)
+    {
+        Vector2 soma = Vector2.Zero;
+        foreach (var j in jogadores) soma += j.Centro();
+        return soma / jogadores.Length;
+    }
+
+    // Zoom dinamico: quanto mais longe os jogadores, mais a camera afasta
+    static float CalculaZoomDinamico(Jogador[] jogadores)
+    {
+        if (jogadores.Length < 2)
+            return 0.75f;
+
+        float distancia = Vector2.Distance(jogadores[0].Centro(), jogadores[1].Centro());
+
+        const float distMin = 400f;
+        const float distMax = 1400f;
+        const float zoomMax = 0.75f;
+        const float zoomMin = 0.45f;
+
+        if (distancia <= distMin) return zoomMax;
+        if (distancia >= distMax) return zoomMin;
+
+        float t = (distancia - distMin) / (distMax - distMin);
+        t = t * t * (3f - 2f * t);
+
+        return zoomMax + (zoomMin - zoomMax) * t;
+    }
+
+    static Vector2 JogadorVivoMaisProximoDe(Jogador[] jogadores, Vector2 ponto)
+    {
+        Vector2 melhor = jogadores[0].Centro();
+        float melhorDist = float.MaxValue;
+
+        foreach (var j in jogadores)
+        {
+            if (j.EhFantasma) continue;
+            float d = Vector2.Distance(ponto, j.Centro());
+            if (d < melhorDist) { melhorDist = d; melhor = j.Centro(); }
+        }
+
+        return melhor;
     }
 
     static bool ZumbiAtrasDeEstrutura(Zumbi z, List<ObjetoMapa> objetos)
@@ -687,7 +956,7 @@ public static class Program
     }
 
     static Vector2 PosAleatoriaZumbi(
-        Random rng, Vector2 pertoDe, NavegacaoZumbi navegacao)
+        Random rng, Jogador[] jogadores, NavegacaoZumbi navegacao)
     {
         float minX = CenaMundo.PosIlha.X + 150;
         float maxX = CenaMundo.PosIlha.X + CenaMundo.GramaLargura - 150;
@@ -703,7 +972,7 @@ public static class Program
             );
 
             if (!navegacao.PodeOcupar(pos)) continue;
-            if (Vector2.Distance(pos, pertoDe) > 600f) return pos;
+            if (DistanciaAoJogadorMaisProximo(jogadores, pos) > 600f) return pos;
             alternativa ??= pos;
         }
 
@@ -828,13 +1097,77 @@ public static class Program
         return EstadoJogo.EhDia ? MusicaDoDia : MusicaDaNoite;
     }
 
-    static void DesenhaAviso(string texto)
+    // Junta os inputs de menu dos dois jogadores (qualquer um controla a pausa).
+    static InputState CombinaMenu(InputState a, InputState b)
+    {
+        InputState r = new InputState();
+        r.MenuUp       = a.MenuUp       || b.MenuUp;
+        r.MenuDown     = a.MenuDown     || b.MenuDown;
+        r.MenuEsquerda = a.MenuEsquerda || b.MenuEsquerda;
+        r.MenuDireita  = a.MenuDireita  || b.MenuDireita;
+        r.MenuConfirm  = a.MenuConfirm  || b.MenuConfirm;
+        r.MenuCancel   = a.MenuCancel   || b.MenuCancel;
+        return r;
+    }
+
+    static void DesenhaAviso(string texto, int linha = 0)
     {
         int tam = 24;
         int larguraTexto = Raylib.MeasureText(texto, tam);
         Raylib.DrawText(texto,
             (LarguraTela - larguraTexto) / 2,
-            AlturaTela - 60,
+            AlturaTela - 60 - linha * 30,
             tam, Color.White);
+    }
+
+    // Qualquer controle conectado (P1 ou P2) confirmando com o botao de baixo.
+    static bool AlgumControleConfirmou()
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            if (Raylib.IsGamepadAvailable(i) &&
+                Raylib.IsGamepadButtonPressed(i, GamepadButton.RightFaceDown))
+                return true;
+        }
+        return false;
+    }
+
+    // Menor distancia entre um ponto e os jogadores vivos (se todos estiverem
+    // fantasmas, considera todos).
+    static float DistanciaAoJogadorMaisProximo(Jogador[] jogadores, Vector2 ponto)
+    {
+        float melhor = float.MaxValue;
+        bool algumVivo = false;
+        foreach (var j in jogadores) if (!j.EhFantasma) { algumVivo = true; break; }
+
+        foreach (var j in jogadores)
+        {
+            if (algumVivo && j.EhFantasma) continue;
+            float d = Vector2.Distance(ponto, j.Centro());
+            if (d < melhor) melhor = d;
+        }
+        return melhor;
+    }
+
+    // Escolhe qual jogador "representa" o evento do telefone neste frame.
+    static int JogadorDoEvento(Jogador[] jogadores, InputState[] inputs, EventoTelefone evento)
+    {
+        Vector2 centroTelefone = evento.PosicaoTelefone + new Vector2(8f, 16f);
+        int maisProximo = -1;
+        float melhorDist = float.MaxValue;
+
+        for (int ji = 0; ji < jogadores.Length; ji++)
+        {
+            if (jogadores[ji].EhFantasma) continue;
+
+            Vector2 c = jogadores[ji].Centro();
+            if (inputs[ji].InteractPressed && evento.JogadorPertoDoTelefone(c))
+                return ji;
+
+            float d = Vector2.Distance(c, centroTelefone);
+            if (d < melhorDist) { melhorDist = d; maisProximo = ji; }
+        }
+
+        return maisProximo >= 0 ? maisProximo : 0;
     }
 }
