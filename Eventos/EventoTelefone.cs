@@ -20,7 +20,7 @@ public enum FaseEventoTelefone
 
 public sealed class EventoTelefone
 {
-    public static int DiaDoEvento = 3;
+    public static int DiaDoEvento = 5;
 
     public const float AlcanceAtender = 150f;
 
@@ -203,7 +203,8 @@ public sealed class EventoTelefone
         float delta,
         InputState input,
         Vector2 jogadorCentro,
-        ref Camera2D camera)
+        ref Camera2D camera,
+        Vector2? centroCamera = null)
     {
         if (
             fase == FaseEventoTelefone.Inativo ||
@@ -225,8 +226,9 @@ public sealed class EventoTelefone
                 break;
 
             case FaseEventoTelefone.RetornaCamera:
+                // No coop a camera volta para o meio dos jogadores, nao para um so.
                 AtualizaRetornoCamera(
-                    jogadorCentro,
+                    centroCamera ?? jogadorCentro,
                     ref camera);
                 break;
 
@@ -534,7 +536,8 @@ public sealed class EventoTelefone
     }
 
     public void DesenhaInterface(
-        Vector2 jogadorCentro)
+        Vector2 jogadorCentro,
+        string teclaInteragir = "E")
     {
         if (
             fase ==
@@ -542,7 +545,7 @@ public sealed class EventoTelefone
             JogadorPertoDoTelefone(jogadorCentro))
         {
             DesenhaTextoCentral(
-                "Pressione E para atender",
+                $"Pressione {teclaInteragir} para atender",
                 Program.AlturaTela - 54,
                 22,
                 Color.White);
@@ -581,7 +584,7 @@ public sealed class EventoTelefone
                 Color.White);
 
             Raylib.DrawText(
-                "E: continuar",
+                $"{teclaInteragir}: continuar",
                 Program.LarguraTela - 170,
                 Program.AlturaTela - 54,
                 16,

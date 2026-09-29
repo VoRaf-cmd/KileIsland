@@ -11,7 +11,7 @@ public static class ForjaUI
 
     public static void ResetarSelecao() { botaoSelecionado = 0; }
 
-    public static void Desenha(InputState input, bool podeInteragir)
+    public static void Desenha(InputState[] inputs, bool podeInteragir)
     {
         int painelLargura = 520;
         int painelAltura = 460;
@@ -31,20 +31,26 @@ public static class ForjaUI
         Raylib.DrawText($"Nivel {EstadoJogo.Nivel}   Moedas {EstadoJogo.Moedas}   XP {EstadoJogo.Xp}",
                         painelX + 20, painelY + 55, 18, Color.White);
 
+        // Combina input dos 2 jogadores
+        bool menuDown = inputs[0].MenuDown || inputs[1].MenuDown;
+        bool menuUp = inputs[0].MenuUp || inputs[1].MenuUp;
+        bool menuCancel = inputs[0].MenuCancel || inputs[1].MenuCancel;
+        bool menuConfirm = inputs[0].MenuConfirm || inputs[1].MenuConfirm;
+
         if (podeInteragir)
         {
-            if (input.MenuDown)
+            if (menuDown)
             {
                 botaoSelecionado = (botaoSelecionado + 1) % IdsBotoes.Count;
                 AudioManager.TocaSelecaoMenu();
             }
-            if (input.MenuUp)
+            if (menuUp)
             {
                 botaoSelecionado--;
                 if (botaoSelecionado < 0) botaoSelecionado = IdsBotoes.Count - 1;
                 AudioManager.TocaSelecaoMenu();
             }
-            if (input.MenuCancel)
+            if (menuCancel)
             {
                 AudioManager.TocaCliqueMenu();
                 Program.ForjaAberta = false;
@@ -52,7 +58,7 @@ public static class ForjaUI
             }
         }
 
-        bool confirmar = podeInteragir && input.MenuConfirm;
+        bool confirmar = podeInteragir && menuConfirm;
 
         int idx = 0;
         int y = painelY + 90;

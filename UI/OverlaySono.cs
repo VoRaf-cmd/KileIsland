@@ -32,24 +32,39 @@ public static class OverlaySono
             case EstadoSono.FadeOut:
                 if (Tempo >= DuracaoFadeOut) { Estado = EstadoSono.Escuro; Tempo = 0f; }
                 break;
+
             case EstadoSono.Escuro:
                 if (Tempo >= DuracaoEscuro)
                 {
                     EstadoJogo.Dia++;
-                    EstadoJogo.EhDia = true;   // acorda de dia
-                    EstadoJogo.VidaPontos = EstadoJogo.VidaMaxPontos;
-                    CicloDiaNoite.ForcaDia();  // reseta o relógio do ciclo
+                    EstadoJogo.EhDia = true;
+                    CicloDiaNoite.ForcaDia();
+
+                    try
+                    {
+                        Program.ReviverTodosAoDormir();
+                    }
+                    catch
+                    {
+                        // Se der erro, ignora pra nao travar
+                    }
+
                     Estado = EstadoSono.FadeIn;
                     Tempo = 0f;
                 }
                 break;
+
             case EstadoSono.FadeIn:
-                if (Tempo >= DuracaoFadeIn) { Estado = EstadoSono.Acordado; Tempo = 0f; }
+                if (Tempo >= DuracaoFadeIn)
+                {
+                    Estado = EstadoSono.Acordado;
+                    Tempo = 0f;
+                }
                 break;
         }
     }
 
-    public static void Desenha()
+    public static void Desenha(Jogador[] jogadores)
     {
         if (!Dormindo) return;
 
