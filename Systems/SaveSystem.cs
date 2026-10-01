@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Text.Json;
@@ -29,6 +30,12 @@ public class DadosSave
 
     // true se o jogo foi salvo no modo Coop Local (saves antigos nao tem o campo = false)
     public bool Coop { get; set; }
+
+    // ----- Cartas -----
+    public List<TipoCarta> FilaCartas { get; set; } = new();
+    public bool CoracaoExtraComprado { get; set; }
+    public float MultiplicadorVelocidadeCarta { get; set; } = 1f;
+    public int DiaFimVelocidade { get; set; } = -1;
 }
 
 public static class SaveSystem
@@ -37,9 +44,9 @@ public static class SaveSystem
 
     static string Caminho(int slot) => Path.Combine("Dados", $"save{slot + 1}.json");
 
-    public static DadosSave[] CarregaTodos()
+    public static DadosSave?[] CarregaTodos()
     {
-        DadosSave[] slots = new DadosSave[MaxSlots];
+        DadosSave?[] slots = new DadosSave?[MaxSlots];
 
         for (int i = 0; i < MaxSlots; i++)
             slots[i] = Carrega(i);
@@ -47,7 +54,7 @@ public static class SaveSystem
         return slots;
     }
 
-    public static DadosSave Carrega(int slot)
+    public static DadosSave? Carrega(int slot)
     {
         try
         {
@@ -87,6 +94,12 @@ public static class SaveSystem
             PosX = jogador.Pos.X,
             PosY = jogador.Pos.Y,
             Coop = coop,
+
+            // Cartas
+            FilaCartas = new List<TipoCarta>(EstadoJogo.FilaCartas),
+            CoracaoExtraComprado = EstadoJogo.CoracaoExtraComprado,
+            MultiplicadorVelocidadeCarta = EstadoJogo.MultiplicadorVelocidadeCarta,
+            DiaFimVelocidade = EstadoJogo.DiaFimVelocidade,
         };
 
         try
@@ -134,6 +147,12 @@ public static class SaveSystem
         EstadoJogo.ItemAtual = dados.ItemAtual;
         EstadoJogo.EspadasCompradas = (bool[])dados.EspadasCompradas.Clone();
         EstadoJogo.EspadaEquipada = dados.EspadaEquipada;
+
+        // Cartas
+        EstadoJogo.FilaCartas = new List<TipoCarta>(dados.FilaCartas ?? new List<TipoCarta>());
+        EstadoJogo.CoracaoExtraComprado = dados.CoracaoExtraComprado;
+        EstadoJogo.MultiplicadorVelocidadeCarta = dados.MultiplicadorVelocidadeCarta;
+        EstadoJogo.DiaFimVelocidade = dados.DiaFimVelocidade;
 
         jogador.Pos = new Vector2(dados.PosX, dados.PosY);
     }

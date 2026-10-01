@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 
 namespace KileIsland;
@@ -23,14 +24,11 @@ public static class EstadoJogo
     public static int Moedas = 0;
     public static bool EhDia = true;
 
-    // Quantas noites já passaram (incrementa ao amanhecer)
     public static int NoitesSobrevividas = 0;
 
-    // Vida por pontos (4 pontos = 1 coração)
     public static int VidaMaxPontos = 12;
     public static int VidaPontos = 12;
 
-    // Minérios
     public static int Cobre = 0;
     public static int Ferro = 0;
     public static int Ouro  = 0;
@@ -52,6 +50,14 @@ public static class EstadoJogo
         new Espada { Nome = "Ouro",    Nivel = 8, Preco = 1000, XP = 400, Dano = 30 },
     };
 
+    // ----- Cartas -----
+    public static List<TipoCarta> FilaCartas = new List<TipoCarta>();
+    public static float CooldownCarta = 0f;
+    public const float CooldownCartaMax = 8f;
+    public static bool CoracaoExtraComprado = false;
+    public static float MultiplicadorVelocidadeCarta = 1f;
+    public static int DiaFimVelocidade = -1;
+
     public static void Resetar()
     {
         Nivel = 1;
@@ -61,6 +67,7 @@ public static class EstadoJogo
         Moedas = 0;
         EhDia = true;
         NoitesSobrevividas = 0;
+        VidaMaxPontos = 12;
         VidaPontos = VidaMaxPontos;
         Cobre = 0;
         Ferro = 0;
@@ -68,9 +75,14 @@ public static class EstadoJogo
         ItemAtual = ItemEquipado.Picareta;
         EspadasCompradas = new bool[4];
         EspadaEquipada = -1;
+
+        FilaCartas.Clear();
+        CooldownCarta = 0f;
+        CoracaoExtraComprado = false;
+        MultiplicadorVelocidadeCarta = 1f;
+        DiaFimVelocidade = -1;
     }
 
-    // Ganha XP e sobe de nível se necessário
     public static void GanhaXp(int quantidade)
     {
         Xp += quantidade;
@@ -79,12 +91,62 @@ public static class EstadoJogo
             Xp -= XpProximoNivel;
             Nivel++;
             XpProximoNivel += 100;
-            LevelUpAviso.Avisa($"Nível {Nivel}!");
+            LevelUpAviso.Avisa($"Nivel {Nivel}!");
         }
+    }
+
+    public static void AtualizaCartas(float delta)
+    {
+        if (CooldownCarta > 0f)
+            CooldownCarta = Math.Max(0f, CooldownCarta - delta);
+
+        if (DiaFimVelocidade >= 0 && Dia >= DiaFimVelocidade)
+        {
+            MultiplicadorVelocidadeCarta = 1f;
+            DiaFimVelocidade = -1;
+        }
+    }
+
+    public static string UsaCarta(TipoCarta tipo, Jogador jogador)
+    {
+        switch (tipo)
+        {
+            case TipoCarta.Empadinha:
+                if (jogador.VidaPontos >= jogador.VidaMaxPontos) return "Vida cheia";
+                jogador.Cura(4);
+                // Espelha no EstadoJogo (pro save)
+                VidaPontos = jogador.VidaPontos;
+                return "+4 vida";
+
+            case TipoCarta.CoracaoExtra:
+                return "Coracao Extra ja ativo";
+
+            case TipoCarta.Velocidade:
+                MultiplicadorVelocidadeCarta = 1.30f;
+                DiaFimVelocidade = Dia + 3;
+                return "Velocidade +30% por 3 dias";
+        }
+        return "";
+    }
+
+    public static string TentaUsarProximaCarta(Jogador jogador)
+    {
+        if (CooldownCarta > 0f) return "";
+        if (FilaCartas.Count == 0) return "";
+        if (jogador.VidaPontos <= 0) return "";
+
+        TipoCarta tipo = FilaCartas[0];
+
+        if (tipo == TipoCarta.Empadinha && jogador.VidaPontos >= jogador.VidaMaxPontos)
+            return "Vida cheia";
+
+        string msg = UsaCarta(tipo, jogador);
+        FilaCartas.RemoveAt(0);
+        CooldownCarta = CooldownCartaMax;
+        return msg;
     }
 }
 
-// Aviso global de level up (usado pelo HUD)
 public static class LevelUpAviso
 {
     public static string Texto = "";

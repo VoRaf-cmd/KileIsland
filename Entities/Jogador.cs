@@ -40,6 +40,17 @@ public class Jogador
         TempoSwing = 0f;
     }
 
+        public void Cura(int quantidade)
+    {
+        VidaPontos = Math.Min(VidaMaxPontos, VidaPontos + quantidade);
+    }
+
+    public void AumentaVidaMaxima(int quantidade)
+    {
+        VidaMaxPontos += quantidade;
+        VidaPontos += quantidade;
+    }
+
     public Vector2 Pos;
     public Direcao DirecaoAtual = Direcao.Direita;
     public bool Movendo;
@@ -139,16 +150,18 @@ public class Jogador
         if (travado) return delta;
         if (TempoKnockback > 0f) return delta;
 
+        float vel = Velocidade * EstadoJogo.MultiplicadorVelocidadeCarta;
+
         if (MathF.Abs(input.Move.X) > 0.1f)
         {
-            delta.X = input.Move.X * Velocidade;
+            delta.X = input.Move.X * vel;
             DirecaoAtual = input.Move.X > 0f ? Direcao.Direita : Direcao.Esquerda;
             Movendo = true;
         }
 
         if (MathF.Abs(input.Move.Y) > 0.1f)
         {
-            delta.Y = input.Move.Y * Velocidade;
+            delta.Y = input.Move.Y * vel;
             Movendo = true;
         }
 

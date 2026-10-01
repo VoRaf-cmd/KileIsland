@@ -23,53 +23,52 @@ public static class HUD
 
     public static void Carrega() { }
 
-    // Agora recebe os 2 jogadores
-public static void Desenha(Jogador[] jogadores)
-{
-    DesenhaPainel(jogadores[0], 10, 10);
+    public static void Desenha(Jogador[] jogadores)
+    {
+        DesenhaPainel(jogadores[0], 10, 10);
 
-    if (jogadores.Length > 1)
-        DesenhaPainel(jogadores[1], Program.LarguraTela - 190, 10);
+        if (jogadores.Length > 1)
+            DesenhaPainel(jogadores[1], Program.LarguraTela - 190, 10);
 
-    DesenhaDiaTimer();
-    DesenhaLevelUp();
-}
+        DesenhaDiaTimer();
+        DesenhaLevelUp();
+    }
 
-static void DesenhaDiaTimer()
-{
-    int largura = 220;
-    int altura = 56;
-    int x = (Program.LarguraTela - largura) / 2;
-    int y = 10;
+    static void DesenhaDiaTimer()
+    {
+        int largura = 220;
+        int altura = 56;
+        int x = (Program.LarguraTela - largura) / 2;
+        int y = 10;
 
-    Raylib.DrawRectangle(x, y, largura, altura, new Color(0, 0, 0, 170));
-    Raylib.DrawRectangleLines(x, y, largura, altura, new Color(255, 255, 255, 100));
+        Raylib.DrawRectangle(x, y, largura, altura, new Color(0, 0, 0, 170));
+        Raylib.DrawRectangleLines(x, y, largura, altura, new Color(255, 255, 255, 100));
 
-    string texto = $"Dia {EstadoJogo.Dia}";
-    int tam = 22;
-    int larguraTexto = Raylib.MeasureText(texto, tam);
-    Raylib.DrawText(texto, x + (largura - larguraTexto) / 2, y + 6, tam, Color.White);
+        string texto = $"Dia {EstadoJogo.Dia}";
+        int tam = 22;
+        int larguraTexto = Raylib.MeasureText(texto, tam);
+        Raylib.DrawText(texto, x + (largura - larguraTexto) / 2, y + 6, tam, Color.White);
 
-    float restante = CicloDiaNoite.TempoRestante;
-    int min = (int)(restante / 60f);
-    int seg = (int)(restante % 60f);
+        float restante = CicloDiaNoite.TempoRestante;
+        int min = (int)(restante / 60f);
+        int seg = (int)(restante % 60f);
 
-    string fase = EstadoJogo.EhDia ? "Dia" : "Noite";
-    string textoTempo = $"{fase}: {min}:{seg:00}";
-    int tamTempo = 18;
-    int larguraTempo = Raylib.MeasureText(textoTempo, tamTempo);
+        string fase = EstadoJogo.EhDia ? "Dia" : "Noite";
+        string textoTempo = $"{fase}: {min}:{seg:00}";
+        int tamTempo = 18;
+        int larguraTempo = Raylib.MeasureText(textoTempo, tamTempo);
 
-    Color corTempo = EstadoJogo.EhDia
-        ? new Color((byte)255, (byte)230, (byte)140, (byte)255)
-        : new Color((byte)180, (byte)200, (byte)255, (byte)255);
+        Color corTempo = EstadoJogo.EhDia
+            ? new Color((byte)255, (byte)230, (byte)140, (byte)255)
+            : new Color((byte)180, (byte)200, (byte)255, (byte)255);
 
-    Raylib.DrawText(textoTempo, x + (largura - larguraTempo) / 2, y + 32, tamTempo, corTempo);
-}
+        Raylib.DrawText(textoTempo, x + (largura - larguraTempo) / 2, y + 32, tamTempo, corTempo);
+    }
 
     static void DesenhaPainel(Jogador j, int painelX, int painelY)
     {
         int painelLargura = 180;
-        int painelAltura = 118;
+        int painelAltura = 158;
 
         Raylib.DrawRectangle(painelX, painelY, painelLargura, painelAltura,
                              new Color(0, 0, 0, 150));
@@ -79,20 +78,16 @@ static void DesenhaDiaTimer()
         int x = painelX + 10;
         int y = painelY + 8;
 
-        // Nome do jogador
         string nome = j.Indice == 0 ? "P1" : "P2";
         Raylib.DrawText(nome, x, y, 16, j.Cor);
         y += 20;
 
-        // Coracoes
         DesenhaCoracoes(x, y, j.VidaPontos, j.VidaMaxPontos, j.Indice);
         y += CoracaoSize + 6;
 
-        // Level (compartilhado)
         Raylib.DrawText($"Nv {EstadoJogo.Nivel}", x, y, 18, Color.White);
         y += 22;
 
-        // Barra XP (compartilhada)
         int barraLargura = 160;
         int barraAltura = 10;
         float porcentagem = (float)EstadoJogo.Xp / EstadoJogo.XpProximoNivel;
@@ -104,9 +99,29 @@ static void DesenhaDiaTimer()
         Raylib.DrawRectangleLines(x, y, barraLargura, barraAltura, Color.White);
         y += barraAltura + 6;
 
-        // Item equipado (individual)
         string item = j.ItemAtual == ItemEquipado.Espada ? "Espada" : "Picareta";
         Raylib.DrawText($"[{item}]", x, y, 14, new Color(220, 220, 220, 255));
+        y += 18;
+
+        // Carta atual na fila (compartilhada pelos 2)
+        string cartaTexto;
+        if (EstadoJogo.FilaCartas.Count == 0)
+            cartaTexto = "Sem cartas";
+        else
+            cartaTexto = $"{EstadoJogo.FilaCartas[0]} x{EstadoJogo.FilaCartas.Count}";
+
+        Raylib.DrawText(cartaTexto, x, y, 13, new Color(200, 180, 255, 255));
+        y += 16;
+
+        // Cooldown
+        if (EstadoJogo.CooldownCarta > 0f)
+        {
+            int barraLarg = 140;
+            int barraAlt = 6;
+            float pct = 1f - (EstadoJogo.CooldownCarta / EstadoJogo.CooldownCartaMax);
+            Raylib.DrawRectangle(x, y, barraLarg, barraAlt, new Color(60, 60, 60, 255));
+            Raylib.DrawRectangle(x, y, (int)(barraLarg * pct), barraAlt, new Color(180, 120, 255, 255));
+        }
     }
 
     static void DesenhaLevelUp()

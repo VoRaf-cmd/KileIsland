@@ -27,6 +27,7 @@ public static class Program
 
     public static bool ForjaAberta = false;
     public static bool InventarioAberto = false;
+    public static bool JujuAberta = false;
     public static float TempoDesdeAbrirMenu = 0f;
 
     public static Jogador[]? jogadoresGlobais = null;
@@ -164,6 +165,12 @@ public static class Program
             if (dados != null)
             {
                 SaveSystem.Aplica(dados, jogadores[0]);
+                    // Sincroniza a vida do EstadoJogo pros jogadores
+                    foreach (var j in jogadores)
+                    {
+                        j.VidaMaxPontos = EstadoJogo.VidaMaxPontos;
+                        j.VidaPontos = EstadoJogo.VidaPontos;
+                    }
 
                 if (jogadores.Length > 1)
                     jogadores[1].Pos = new Vector2(dados.PosX + 120f, dados.PosY);
@@ -273,7 +280,7 @@ public static class Program
             }
 
             bool dormindo = OverlaySono.Dormindo;
-            bool menuAberto = ForjaAberta || InventarioAberto;
+            bool menuAberto = ForjaAberta || InventarioAberto || JujuAberta;
             bool travado = dormindo || menuAberto || GameOverUI.Ativo ||
                            eventoTelefone.BloqueiaJogador;
             LevelUpAviso.Atualiza(delta);
@@ -318,6 +325,7 @@ public static class Program
 
                     ForjaAberta = false;
                     InventarioAberto = false;
+                    JujuAberta = false;
                     OverlaySono.Estado = EstadoSono.Acordado;
                     OverlaySono.Tempo = 0f;
                     LevelUpAviso.Tempo = 0f;
@@ -387,12 +395,21 @@ public static class Program
                 bool pertoCasa  = Vector2.Distance(centroJ, casa.Centro())  < DistanciaInteracao;
                 bool pertoForja = Vector2.Distance(centroJ, forja.Centro()) < DistanciaInteracao;
 
+                bool pertoJuju = Vector2.Distance(centroJ, juju.Centro()) < DistanciaInteracao;
+
                 if (!travado && !eventoTelefone.Ativo && inputs[ji].InteractPressed)
                 {
                     if (pertoForja)
                     {
                         ForjaAberta = true;
                         ForjaUI.ResetarSelecao();
+                        TempoDesdeAbrirMenu = 0f;
+                        break;
+                    }
+                    else if (pertoJuju)
+                    {
+                        JujuAberta = true;
+                        JujuUI.ResetarSelecao();
                         TempoDesdeAbrirMenu = 0f;
                         break;
                     }
@@ -436,6 +453,25 @@ public static class Program
                         : ItemEquipado.Espada;
                 }
             }
+            
+            // Usar carta (compartilhado entre os 2 jogadores)
+            if (!travado)
+            {
+                for (int ji = 0; ji < jogadores.Length; ji++)
+                {
+                    if (jogadores[ji].EhFantasma) continue;
+                    if (inputs[ji].UsarCartaPressed)
+                    {
+                        string msg = EstadoJogo.TentaUsarProximaCarta(jogadores[ji]);
+                        if (msg != "")
+                        {
+                            LevelUpAviso.Avisa(msg);
+                            Efeitos.Shake(4f, 0.15f);
+                        }
+                        break;
+                    }
+                }
+            }
 
             bool podeInteragirMenu = TempoDesdeAbrirMenu > 0.2f;
 
@@ -448,6 +484,7 @@ public static class Program
                 {
                     ForjaAberta = false;
                     InventarioAberto = false;
+                    JujuAberta = false;
                 }
             }
 
@@ -614,6 +651,7 @@ public static class Program
             foreach (var m in minerios) m.Atualiza(delta);
             foreach (var d in drops) d.Atualiza(delta);
             Efeitos.Atualiza(delta);
+            EstadoJogo.AtualizaCartas(delta);
 
             float velZumbiBase = Jogador.Velocidade * 0.72f;
 
@@ -640,7 +678,11 @@ public static class Program
                         if (j.EhFantasma) continue;
                         if (Raylib.CheckCollisionRecs(j.Retangulo(), z.Retangulo()))
                         {
-                            j.TomaDano(z.Centro(), z.DanoContato);
+                            if (j.TomaDano(z.Centro(), z.DanoContato))
+                            {
+                                // Espelha no EstadoJogo (pro save e pra empadinha)
+                                EstadoJogo.VidaPontos = j.VidaPontos;
+                            }
                             break;
                         }
                     }
@@ -839,7 +881,10 @@ public static class Program
                     bool pertoCasa  = Vector2.Distance(centroJ, casa.Centro())  < DistanciaInteracao;
                     bool pertoForja = Vector2.Distance(centroJ, forja.Centro()) < DistanciaInteracao;
 
-                    string? acaoAviso = pertoForja ? "abrir a forja" : (pertoCasa ? "dormir" : null);
+                    bool pertoJuju = Vector2.Distance(centroJ, juju.Centro()) < DistanciaInteracao;
+                    string? acaoAviso = pertoForja ? "abrir a forja"
+                                       : (pertoJuju ? "falar com a Juju"
+                                       : (pertoCasa ? "dormir" : null));
                     if (acaoAviso == null) continue;
 
                     // Mostra a tecla/botao REAL de cada jogador (P2 usa Enter, nao E).
@@ -850,6 +895,7 @@ public static class Program
 
             if (ForjaAberta) ForjaUI.Desenha(inputs, podeInteragirMenu);
             if (InventarioAberto) InventarioUI.Desenha(inputs, podeInteragirMenu);
+            if (JujuAberta) JujuUI.Desenha(inputs, podeInteragirMenu);
 
             OverlaySono.Desenha(jogadores);
             GameOverUI.Desenha();

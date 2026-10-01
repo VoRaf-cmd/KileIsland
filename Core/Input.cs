@@ -17,6 +17,7 @@ public struct InputState
     public bool AttackHeld;
     public bool ClosePressed;
     public bool MouseClickPressed;
+    public bool UsarCartaPressed;
 
     public bool MenuUp;
     public bool MenuDown;
@@ -30,22 +31,16 @@ public static class Input
 {
     const GamepadAxis AX_LX = GamepadAxis.LeftX;
     const GamepadAxis AX_LY = GamepadAxis.LeftY;
-
     const float Deadzone = 0.25f;
 
     public static InputDevice LastDevice { get; private set; } = InputDevice.Keyboard;
     public static GamepadBrand Brand { get; private set; } = GamepadBrand.Unknown;
 
-    // Le input do jogador indicado (0 = P1, 1 = P2)
     public static InputState Read(int jogador = 0)
     {
         InputState s = new InputState();
         int gamepadIndex = jogador;
-
         bool pad = Raylib.IsGamepadAvailable(gamepadIndex);
-
-        // LastDevice / Brand pertencem ao P1 (dica de botoes na tela).
-        // O P2 nao pode sobrescrever isso a cada frame.
         bool principal = jogador == 0;
 
         if (principal && pad && Brand == GamepadBrand.Unknown)
@@ -57,7 +52,6 @@ public static class Input
 
         if (jogador == 0)
         {
-            // P1 usa WASD
             if (Raylib.IsKeyDown(KeyboardKey.A)) { mx -= 1f; keyboardUsed = true; }
             if (Raylib.IsKeyDown(KeyboardKey.D)) { mx += 1f; keyboardUsed = true; }
             if (Raylib.IsKeyDown(KeyboardKey.W)) { my -= 1f; keyboardUsed = true; }
@@ -65,7 +59,6 @@ public static class Input
         }
         else
         {
-            // P2 usa setas
             if (Raylib.IsKeyDown(KeyboardKey.Left))  { mx -= 1f; keyboardUsed = true; }
             if (Raylib.IsKeyDown(KeyboardKey.Right)) { mx += 1f; keyboardUsed = true; }
             if (Raylib.IsKeyDown(KeyboardKey.Up))    { my -= 1f; keyboardUsed = true; }
@@ -96,7 +89,6 @@ public static class Input
         KeyboardKey teclaInventario = teclas[AcaoJogo.Inventario];
         KeyboardKey teclaTrocar     = teclas[AcaoJogo.TrocarItem];
         KeyboardKey teclaFechar     = teclas[AcaoJogo.Fechar];
-
         KeyboardKey teclaAtacar     = teclas[AcaoJogo.Atacar];
 
         GamepadButton botaoInteragir  = botoes[AcaoJogo.Interagir];
@@ -114,7 +106,6 @@ public static class Input
         s.SwapItemPressed  = Raylib.IsKeyPressed(teclaTrocar)
                           || (pad && Raylib.IsGamepadButtonPressed(gamepadIndex, botaoTrocar));
 
-        // Ataque: P1 = mouse (+ tecla configurada), P2 = tecla configurada (sem mouse)
         bool ataqueMouse = principal && Raylib.IsMouseButtonPressed(MouseButton.Left);
         bool ataqueMouseHeld = principal && Raylib.IsMouseButtonDown(MouseButton.Left);
 
@@ -131,6 +122,12 @@ public static class Input
 
         s.MouseClickPressed = principal && Raylib.IsMouseButtonPressed(MouseButton.Left);
 
+        // ----- Usar carta (H no teclado / B no controle) -----
+        // B no Xbox = RightFaceRight = mesmo botão de "Fechar". O Program só usa quando
+        // NENHUM menu tá aberto, então não conflita.
+        s.UsarCartaPressed = Raylib.IsKeyPressed(KeyboardKey.H)
+                          || (pad && Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.RightFaceRight));
+
         if (principal)
         {
             if (gamepadUsed) LastDevice = InputDevice.Gamepad;
@@ -142,9 +139,6 @@ public static class Input
         }
 
         // ----- Navegacao de menu -----
-        // P1: teclado (setas/WASD/Enter/Esc) + controle 0.
-        // P2: apenas o proprio controle (o teclado ja e coberto pelo P1, que usa as
-        // mesmas setas/Enter). Os menus in-game combinam os inputs dos dois jogadores.
         if (principal)
         {
             s.MenuUp     = Raylib.IsKeyPressed(KeyboardKey.Up)
@@ -156,10 +150,10 @@ public static class Input
                         || (pad && Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftFaceDown));
 
             s.MenuEsquerda = Raylib.IsKeyPressed(KeyboardKey.Left)
-                          || (pad && Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftTrigger1));
+                          || (pad && Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftFaceLeft));
 
             s.MenuDireita  = Raylib.IsKeyPressed(KeyboardKey.Right)
-                          || (pad && Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.RightTrigger1));
+                          || (pad && Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftFaceRight));
 
             s.MenuConfirm = Raylib.IsKeyPressed(KeyboardKey.Enter)
                          || (pad && Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.RightFaceDown));
@@ -171,8 +165,8 @@ public static class Input
         {
             s.MenuUp       = Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftFaceUp);
             s.MenuDown     = Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftFaceDown);
-            s.MenuEsquerda = Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftTrigger1);
-            s.MenuDireita  = Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.RightTrigger1);
+            s.MenuEsquerda = Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftFaceLeft);
+            s.MenuDireita  = Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.LeftFaceRight);
             s.MenuConfirm  = Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.RightFaceDown);
             s.MenuCancel   = Raylib.IsGamepadButtonPressed(gamepadIndex, GamepadButton.RightFaceRight);
         }
@@ -211,8 +205,6 @@ public static class Input
         }
     }
 
-    // Texto do botao de "Interagir" do jogador (para os avisos na tela).
-    // P1 segue o ultimo dispositivo usado; P2 usa o controle 2 se ele estiver conectado.
     public static string NomeInteragir(int jogador)
     {
         bool usaControle = jogador == 0
